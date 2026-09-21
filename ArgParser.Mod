@@ -297,7 +297,7 @@ VAR
   opt: Option;
   cmd: Command;
   cont, skipNext, dashDashSeen: BOOLEAN;
-  eqIdx: INTEGER;
+  eqIdx, ci, k: INTEGER;
 
   PROCEDURE ExtractEq(VAR src, name, val: ARRAY OF CHAR; VAR eqPos: INTEGER);
   VAR j, k: INTEGER;
@@ -329,7 +329,8 @@ BEGIN
       Args.Get(i, arg);
       IF (arg = "--") & ~dashDashSeen THEN
         dashDashSeen := TRUE
-      ELSIF dashDashSeen OR (arg[0] # "-") THEN
+      ELSIF dashDashSeen OR (arg[0] # "-") OR (arg[1] = 0X) THEN
+        (* An ordinary argument.  A bare "-" is one too, not an option. *)
         cmd := FindCommand(p, arg);
         IF cmd # NIL THEN
           (* It IS a command: the sub-parser handles the rest of the
@@ -366,26 +367,37 @@ BEGIN
           HALT(1)
         END
       ELSE
-        (* Handle Short Option *)
-        opt := FindShortOption(p, arg[1]);
-        IF opt # NIL THEN
-          IF opt.argRequired THEN
-            IF i + 1 < numArgs THEN
+        (* Handle Short Options, possibly clustered, as in -abc.  An option
+           that takes an argument uses the rest of the cluster as its
+           argument if there is any (-ifoo), or else the next command line
+           argument (-i foo). *)
+        ci := 1;
+        WHILE (arg[ci] # 0X) & cont DO
+          opt := FindShortOption(p, arg[ci]);
+          IF opt = NIL THEN
+            Out.String("Error: Unknown option -"); Out.Char(arg[ci]); Out.Ln;
+            ErrorUsage(p);
+            HALT(1)
+          ELSIF opt.argRequired THEN
+            IF arg[ci + 1] # 0X THEN
+              k := 0; INC(ci);
+              WHILE arg[ci] # 0X DO optArg[k] := arg[ci]; INC(ci); INC(k) END;
+              optArg[k] := 0X;
+              cont := DispatchOption(p, opt, optArg)
+            ELSIF i + 1 < numArgs THEN
               INC(i);
               Args.Get(i, optArg);
+              INC(ci);
               cont := DispatchOption(p, opt, optArg)
             ELSE
-              Out.String("Error: Argument required for option -"); Out.Char(arg[1]); Out.Ln;
+              Out.String("Error: Argument required for option -"); Out.Char(arg[ci]); Out.Ln;
               ErrorUsage(p);
               HALT(1)
             END
           ELSE
-            cont := DispatchOption(p, opt, emptyArg)
+            cont := DispatchOption(p, opt, emptyArg);
+            INC(ci)
           END
-        ELSE
-          Out.String("Error: Unknown option -"); Out.Char(arg[1]); Out.Ln;
-          ErrorUsage(p);
-          HALT(1)
         END
       END
     END;
