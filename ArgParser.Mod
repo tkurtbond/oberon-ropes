@@ -160,7 +160,8 @@ BEGIN
   WHILE opt # NIL DO
     Out.String("  ");
     IF opt.shortName # 0X THEN
-      Out.Char("-"); Out.Char(opt.shortName)
+      Out.Char("-"); Out.Char(opt.shortName);
+      IF opt.argRequired THEN Out.String(" <arg>") END
     END;
     IF (opt.shortName # 0X) & (opt.longName # "") THEN Out.String(", ") END;
     IF opt.longName # "" THEN
