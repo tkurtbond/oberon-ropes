@@ -7,8 +7,13 @@ CONST
   StringOption* = 1;
   IntOption* = 2;
 
+  (* The most characters a String holds.  A command line argument longer
+     than this is cut short when it is read, without any error, so a program
+     that cannot allow that should check the length of its arguments. *)
+  MaxStringLength* = 4095;
+
 TYPE
-  String* = ARRAY 256 OF CHAR;
+  String* = ARRAY MaxStringLength + 1 OF CHAR;
 
   OptionHandler* = PROCEDURE (): BOOLEAN;
   StringOptionHandler* = PROCEDURE (VAR arg: ARRAY OF CHAR): BOOLEAN;
