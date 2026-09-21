@@ -208,7 +208,7 @@ BEGIN
     StrToInt(arg, val);
     IF (val < opt.minInt) OR (val > opt.maxInt) THEN
       Out.String("Error: Value out of range for option."); Out.Ln;
-      RETURN FALSE
+      HALT(1)
     END;
     IF opt.intHandler # NIL THEN RETURN opt.intHandler(val) END;
   END;
@@ -316,14 +316,14 @@ BEGIN
               cont := DispatchOption(opt, optArg)
             ELSE
               Out.String("Error: Argument required for option --"); Out.String(optName); Out.Ln;
-              cont := FALSE
+              HALT(1)
             END
           ELSE
             cont := DispatchOption(opt, emptyArg)
           END
         ELSE
           Out.String("Error: Unknown option --"); Out.String(optName); Out.Ln;
-          cont := FALSE
+          HALT(1)
         END
       ELSE
         (* Handle Short Option *)
@@ -336,14 +336,14 @@ BEGIN
               cont := DispatchOption(opt, optArg)
             ELSE
               Out.String("Error: Argument required for option -"); Out.Char(arg[1]); Out.Ln;
-              cont := FALSE
+              HALT(1)
             END
           ELSE
             cont := DispatchOption(opt, emptyArg)
           END
         ELSE
           Out.String("Error: Unknown option -"); Out.Char(arg[1]); Out.Ln;
-          cont := FALSE
+          HALT(1)
         END
       END
     END;
