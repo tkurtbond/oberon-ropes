@@ -1,9 +1,16 @@
 #!/bin/bash
 # Run the fixtures in this directory against the example programs and
 # report how many passed.  With -v, also announce each test and its
-# outcome as it goes.  The programs are run from BINDIR, relative to the
-# directory above (default: that directory itself), so a build made
-# elsewhere, like poc's in poc-build, can be tested too.
+# outcome as it goes.  With -o, do that and also show what each program
+# actually printed (everything it wrote, exactly as it wrote it, and its
+# exit status), whether the test passed or not.  Any other arguments name
+# the tests to run, instead of all of them; each may be a bare NAME,
+# NAME.test, or tests/NAME.test.
+# The programs are run from BINDIR, relative to the directory above
+# (default: that directory itself), so a build made elsewhere, like poc's
+# in poc-build, can be tested too.
+#
+#   tests/run-tests.sh -o cmd-add cluster-repeat
 #
 # A fixture is tests/NAME.test, with these lines, in this order:
 #
@@ -18,11 +25,33 @@
 # Halt(N)." lines that voc's runtime prints after a HALT (poc's does not).
 
 verbose=0
-[ "$1" = -v ] && verbose=1
+show=0
+while getopts vo opt; do
+  case $opt in
+    v) verbose=1 ;;
+    o) verbose=1; show=1 ;;
+    *) echo "usage: $0 [-v] [-o] [TEST...]" >&2; exit 2 ;;
+  esac
+done
+shift $((OPTIND - 1))
 
 bindir=${BINDIR:-.}
 
 cd "$(dirname "$0")/.." || exit 2
+
+fixtures=()
+if [ $# -eq 0 ]; then
+  fixtures=(tests/*.test)
+else
+  for arg; do
+    fixture=tests/$(basename "$arg" .test).test
+    if [ ! -f "$fixture" ]; then
+      echo "$0: no such test: $arg" >&2
+      exit 2
+    fi
+    fixtures+=("$fixture")
+  done
+fi
 
 ok=0
 failed=0
@@ -30,7 +59,17 @@ failures=()
 
 strip () { sed -e 's/[[:space:]]*$//' -e '/^Terminated by Halt(.*)\.$/d'; }
 
-for fixture in tests/*.test; do
+# Show what the program printed, for -o.
+show_output () {
+  echo "  output (exit status $got):"
+  if [ -n "$raw" ]; then
+    printf '%s\n' "$raw" | sed 's/^/    /'
+  else
+    echo "    (none)"
+  fi
+}
+
+for fixture in "${fixtures[@]}"; do
   name=$(basename "$fixture" .test)
   program=
   status=
@@ -47,17 +86,21 @@ for fixture in tests/*.test; do
   done < "$fixture"
 
   expected=$(sed '1,/^output$/d' "$fixture" | strip)
-  actual=$("$bindir/$program" "${args[@]}" 2>&1)
+  raw=$("$bindir/$program" "${args[@]}" 2>&1)
   got=$?
-  actual=$(printf '%s\n' "$actual" | strip)
+  actual=$(printf '%s\n' "$raw" | strip)
 
   if [ "$got" = "$status" ] && [ "$actual" = "$expected" ]; then
     ok=$((ok + 1))
-    [ "$verbose" -eq 1 ] && echo "ok: $name"
+    if [ "$verbose" -eq 1 ]; then
+      echo "ok: $name"
+      [ "$show" -eq 1 ] && show_output
+    fi
   else
     failed=$((failed + 1))
     failures+=("$name")
     echo "FAILED: $name  ($program ${args[*]})"
+    [ "$show" -eq 1 ] && show_output
     [ "$got" = "$status" ] || echo "  exit status: expected $status, got $got"
     diff <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") | sed 's/^/  /'
   fi
