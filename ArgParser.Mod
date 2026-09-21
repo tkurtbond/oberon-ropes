@@ -167,7 +167,7 @@ BEGIN
     IF opt.longName # "" THEN
       Out.String("--"); Out.String(opt.longName)
     END;
-    IF opt.argRequired THEN Out.String(" <arg>") END;
+    IF opt.argRequired & (opt.longName # "") THEN Out.String(" <arg>") END;
     Out.Ln;
     IF opt.description # "" THEN
       Out.String("      "); Out.String(opt.description); Out.Ln
@@ -229,6 +229,14 @@ END StrToInt;
 
 (* --- Dispatch Handling --- *)
 
+(* Show the names of an option, as in the usage: -i, --integer. *)
+PROCEDURE WriteOptionNames(opt: Option);
+BEGIN
+  IF opt.shortName # 0X THEN Out.Char("-"); Out.Char(opt.shortName) END;
+  IF (opt.shortName # 0X) & (opt.longName # "") THEN Out.String(", ") END;
+  IF opt.longName # "" THEN Out.String("--"); Out.String(opt.longName) END
+END WriteOptionNames;
+
 PROCEDURE DispatchOption(p: Parser; opt: Option; VAR arg: ARRAY OF CHAR): BOOLEAN;
 VAR
   val: LONGINT;
@@ -240,12 +248,14 @@ BEGIN
     IF opt.stringHandler # NIL THEN RETURN opt.stringHandler(arg) END;
   ELSIF opt.kind = IntOption THEN
     IF ~StrToInt(arg, val) THEN
-      Out.String("Error: Invalid integer value for option: "); Out.String(arg); Out.Ln;
+      Out.String("Error: Invalid integer value for option ");
+      WriteOptionNames(opt); Out.String(": "); Out.String(arg); Out.Ln;
       ErrorUsage(p);
       HALT(1)
     END;
     IF (val < opt.minInt) OR (val > opt.maxInt) THEN
-      Out.String("Error: Value out of range for option."); Out.Ln;
+      Out.String("Error: Value out of range for option ");
+      WriteOptionNames(opt); Out.Char("."); Out.Ln;
       ErrorUsage(p);
       HALT(1)
     END;
@@ -355,7 +365,8 @@ BEGIN
               Args.Get(i, optArg);
               cont := DispatchOption(p, opt, optArg)
             ELSE
-              Out.String("Error: Argument required for option --"); Out.String(optName); Out.Ln;
+              Out.String("Error: Argument required for option ");
+              WriteOptionNames(opt); Out.Ln;
               ErrorUsage(p);
               HALT(1)
             END
@@ -391,7 +402,8 @@ BEGIN
               INC(ci);
               cont := DispatchOption(p, opt, optArg)
             ELSE
-              Out.String("Error: Argument required for option -"); Out.Char(arg[ci]); Out.Ln;
+              Out.String("Error: Argument required for option ");
+              WriteOptionNames(opt); Out.Ln;
               ErrorUsage(p);
               HALT(1)
             END

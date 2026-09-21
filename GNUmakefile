@@ -2,7 +2,7 @@ VOC=voc
 VOCFLAGS=-f
 VOCMAIN=-m
 
-PROGRAMS=Simple Commands
+PROGRAMS=Simple Commands OneName
 
 .PHONY: all clean test test-verbose
 
