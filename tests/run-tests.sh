@@ -17,12 +17,18 @@
 #   program NAME     the example program to run, in the directory above
 #   arg VALUE        one command line argument; repeat for each argument
 #                    (a bare "arg" is an empty argument)
+#   env NAME=VALUE   set an environment variable for the program; repeat
+#                    for each variable (optional)
+#   dir DIRECTORY    run the program in this directory (optional)
 #   status N         the expected exit status
 #   output           everything after this line is the expected output
 #
 # Lines starting with # before "output" are comments.  Trailing white
 # space is ignored when comparing output, and so are the "Terminated by
 # Halt(N)." lines that voc's runtime prints after a HALT (poc's does not).
+# Programs are run by their full path, which they may print as their name,
+# so that is replaced by the bare NAME in what they print.  Both the
+# output and the error output are compared, mixed together.
 
 verbose=0
 show=0
@@ -38,6 +44,7 @@ shift $((OPTIND - 1))
 bindir=${BINDIR:-.}
 
 cd "$(dirname "$0")/.." || exit 2
+root=$PWD
 
 fixtures=()
 if [ $# -eq 0 ]; then
@@ -73,21 +80,30 @@ for fixture in "${fixtures[@]}"; do
   name=$(basename "$fixture" .test)
   program=
   status=
+  dir=.
   args=()
+  envs=()
   while IFS= read -r line; do
     case $line in
       '#'*)      ;;
       'program '*) program=${line#program } ;;
       arg)       args+=("") ;;
       'arg '*)   args+=("${line#arg }") ;;
+      'env '*)   envs+=("${line#env }") ;;
+      'dir '*)   dir=${line#dir } ;;
       'status '*)  status=${line#status } ;;
       output)    break ;;
     esac
   done < "$fixture"
 
   expected=$(sed '1,/^output$/d' "$fixture" | strip)
-  raw=$("$bindir/$program" "${args[@]}" 2>&1)
+  case $bindir in
+    /*) exe=$bindir/$program ;;
+    *)  exe=$root/$bindir/$program ;;
+  esac
+  raw=$(cd "$dir" && env "${envs[@]}" "$exe" "${args[@]}" 2>&1)
   got=$?
+  raw=${raw//"$exe"/$program}
   actual=$(printf '%s\n' "$raw" | strip)
 
   if [ "$got" = "$status" ] && [ "$actual" = "$expected" ]; then
