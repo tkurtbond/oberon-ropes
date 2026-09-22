@@ -32,3 +32,45 @@ insert S POS INS  Print S with INS inserted before index POS.
 
 
 remove S POS LEN  Print S with LEN characters removed starting at POS.
+
+
+rfind S PATTERN BEFORE  Print the index of the last PATTERN in S at or before BEFORE, or -1.
+
+
+split S SEP  Print each piece of S split on SEP, one per line.
+
+
+trim S  Print S with leading and trailing whitespace removed.
+
+
+triml S  Print S with leading whitespace removed.
+
+
+trimr S  Print S with trailing whitespace removed.
+
+
+upper S  Print S with ASCII letters uppercased.
+
+
+lower S  Print S with ASCII letters lowercased.
+
+
+capitalize S  Print S with its first character uppercased (ASCII only).
+
+
+uncapitalize S  Print S with its first character lowercased (ASCII only).
+
+
+escaped S  Print S with special and non-printable characters escaped.
+
+
+make LEN CH  Print a rope of LEN copies of CH.
+
+
+indexchar S CH FROM  Print the index of CH in S at or after FROM, or -1.
+
+
+rindexchar S CH BEFORE  Print the index of CH in S at or before BEFORE, or -1.
+
+
+contains S CH FROM  Print TRUE or FALSE: whether CH occurs in S at or after FROM.

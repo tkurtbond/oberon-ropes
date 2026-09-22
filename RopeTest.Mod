@@ -9,6 +9,8 @@ IMPORT Out, Rope;
 
 VAR
   passed, failed: LONGINT;
+  splitCount: LONGINT;
+  splitBuf: ARRAY 8 OF ARRAY 16 OF CHAR;
 
 PROCEDURE Check(cond: BOOLEAN; name: ARRAY OF CHAR);
 BEGIN
@@ -216,6 +218,213 @@ BEGIN
   Check(Rope.IsBalanced(wide), "A rope built by balanced doubling is strictly balanced");
 END CheckStressAndBalance;
 
+PROCEDURE CheckFromCharAndMake;
+  VAR r: Rope.Rope;
+BEGIN
+  Check(StrEq(Rope.FromChar("x"), "x"), "FromChar builds a one-character rope");
+  Check(Rope.Length(Rope.FromChar("x")) = 1, "FromChar: length");
+
+  r := Rope.FromSubstring("hello world", 6, 5);
+  Check(StrEq(r, "world"), "FromSubstring: content");
+  Check(Rope.FromSubstring("hello", 0, 0) = NIL, "FromSubstring of length 0 is NIL");
+
+  r := Rope.Make(5, "z");
+  Check(StrEq(r, "zzzzz"), "Make: content");
+  Check(Rope.Make(0, "z") = NIL, "Make of length 0 is NIL");
+  Check(Rope.Make(-1, "z") = NIL, "Make of negative length is NIL");
+END CheckFromCharAndMake;
+
+PROCEDURE ShiftMapper(ch: CHAR): CHAR;
+BEGIN
+  RETURN CHR(ORD(ch) + 1)
+END ShiftMapper;
+
+PROCEDURE IndexDigitMapper(i: LONGINT; ch: CHAR): CHAR;
+BEGIN
+  RETURN CHR(ORD("0") + SHORT(i MOD 10))
+END IndexDigitMapper;
+
+PROCEDURE CheckMap;
+  VAR r, mapped: Rope.Rope;
+BEGIN
+  r := Rope.FromString("abc");
+  Check(StrEq(Rope.Map(r, ShiftMapper), "bcd"), "Map shifts every character");
+  Check(Rope.Map(NIL, ShiftMapper) = NIL, "Map of NIL is NIL");
+
+  (* Two tree nodes (left leaf is 16 chars), so Mapi's threaded index has
+     to survive the recursion into the right child. *)
+  r := Rope.Cat(Rope.FromString("0123456789012345"), Rope.FromString("abcdefghij"));
+  mapped := Rope.Map(r, ShiftMapper);
+  Check(Rope.Depth(mapped) = Rope.Depth(r), "Map preserves tree shape (same Depth)");
+
+  mapped := Rope.Mapi(r, IndexDigitMapper);
+  Check(StrEq(mapped, "01234567890123456789012345"), "Mapi: index threads correctly across a Concat node");
+END CheckMap;
+
+PROCEDURE CheckAsciiCase;
+BEGIN
+  Check(StrEq(Rope.UppercaseAscii(Rope.FromString("Hello, World! 123")), "HELLO, WORLD! 123"), "UppercaseAscii");
+  Check(StrEq(Rope.LowercaseAscii(Rope.FromString("Hello, World! 123")), "hello, world! 123"), "LowercaseAscii");
+  Check(StrEq(Rope.CapitalizeAscii(Rope.FromString("hello")), "Hello"), "CapitalizeAscii");
+  Check(StrEq(Rope.UncapitalizeAscii(Rope.FromString("Hello")), "hello"), "UncapitalizeAscii");
+  Check(Rope.CapitalizeAscii(NIL) = NIL, "CapitalizeAscii of NIL is NIL");
+  Check(Rope.UncapitalizeAscii(NIL) = NIL, "UncapitalizeAscii of NIL is NIL");
+END CheckAsciiCase;
+
+PROCEDURE CheckTrim;
+  VAR r: Rope.Rope;
+BEGIN
+  r := Rope.FromString("  hello world  ");
+  Check(StrEq(Rope.TrimLeft(r), "hello world  "), "TrimLeft");
+  Check(StrEq(Rope.TrimRight(r), "  hello world"), "TrimRight");
+  Check(StrEq(Rope.Trim(r), "hello world"), "Trim");
+  Check(Rope.Trim(Rope.FromString("   ")) = NIL, "Trim of all-whitespace is NIL");
+  Check(Rope.Trim(NIL) = NIL, "Trim of NIL is NIL");
+  Check(StrEq(Rope.Trim(Rope.FromString("no-trim-needed")), "no-trim-needed"),
+        "Trim leaves a rope with no padding unchanged");
+END CheckTrim;
+
+PROCEDURE CheckEscaped;
+  VAR r: Rope.Rope; buf: ARRAY 3 OF CHAR;
+BEGIN
+  Check(StrEq(Rope.Escaped(Rope.FromString('say "hi"')), 'say \"hi\"'), "Escaped: double quote");
+
+  buf[0] := "a"; buf[1] := 9X; buf[2] := 0X;
+  r := Rope.FromString(buf);
+  Check(StrEq(Rope.Escaped(r), "a\t"), "Escaped: tab");
+
+  Check(StrEq(Rope.Escaped(Rope.FromString("\")), "\\"), "Escaped: backslash");
+  Check(Rope.Escaped(NIL) = NIL, "Escaped of NIL is NIL");
+END CheckEscaped;
+
+PROCEDURE CheckIndexCharAndRFind;
+  VAR r: Rope.Rope;
+BEGIN
+  r := Rope.FromString("abcabc");
+  Check(Rope.IndexChar(r, "b", 0) = 1, "IndexChar: first occurrence");
+  Check(Rope.IndexChar(r, "b", 2) = 4, "IndexChar: from an offset");
+  Check(Rope.IndexChar(r, "z", 0) = -1, "IndexChar: not present");
+  Check(Rope.RIndexChar(r, "b", 5) = 4, "RIndexChar: last occurrence");
+  Check(Rope.RIndexChar(r, "b", 3) = 1, "RIndexChar: before an offset");
+  Check(Rope.RIndexChar(r, "z", 5) = -1, "RIndexChar: not present");
+  Check(Rope.Contains(r, "c", 0), "Contains: present");
+  Check(~Rope.Contains(r, "z", 0), "Contains: not present");
+
+  (* "World" occurs at 7 and again at 14. *)
+  r := Rope.Cat(Rope.FromString("Hello, "), Rope.FromString("World! World!"));
+  Check(Rope.RFind(r, "World", Rope.Length(r)) = 14, "RFind: last occurrence searching the whole rope");
+  Check(Rope.RFind(r, "World", 13) = 7, "RFind: a bound excludes a later occurrence");
+  Check(Rope.RFind(r, "xyz", Rope.Length(r)) = -1, "RFind: not present");
+  Check(Rope.RFind(r, "", Rope.Length(r)) = Rope.Length(r), "RFind: empty pattern matches at the bound");
+END CheckIndexCharAndRFind;
+
+PROCEDURE CheckBlit;
+  VAR r: Rope.Rope; buf: ARRAY 11 OF CHAR;
+BEGIN
+  r := Rope.FromString("hello world");
+  buf := "XXXXXXXXXX";
+  Rope.Blit(r, 6, buf, 2, 5);
+  Check((buf[0] = "X") & (buf[1] = "X") & (buf[2] = "w") & (buf[6] = "d") & (buf[7] = "X"),
+        "Blit copies into the middle of dst without touching the rest");
+END CheckBlit;
+
+PROCEDURE CollectPiece(piece: Rope.Rope): BOOLEAN;
+BEGIN
+  IF splitCount < LEN(splitBuf) THEN
+    Rope.ToString(piece, splitBuf[splitCount]);
+    INC(splitCount)
+  END;
+  RETURN TRUE
+END CollectPiece;
+
+PROCEDURE StopAfterTwo(piece: Rope.Rope): BOOLEAN;
+BEGIN
+  IF splitCount < LEN(splitBuf) THEN
+    Rope.ToString(piece, splitBuf[splitCount]);
+    INC(splitCount)
+  END;
+  RETURN splitCount < 2
+END StopAfterTwo;
+
+PROCEDURE CheckSplit;
+  VAR r: Rope.Rope; arr: Rope.Pieces; node: Rope.Piece;
+BEGIN
+  r := Rope.FromString("a,b,,c");
+
+  splitCount := 0;
+  Rope.Split(r, ",", CollectPiece);
+  Check(splitCount = 4, "Split: visits every piece, including an empty one");
+  Check((splitBuf[0] = "a") & (splitBuf[1] = "b") & (splitBuf[2] = "") & (splitBuf[3] = "c"),
+        "Split: piece contents in order");
+
+  splitCount := 0;
+  Rope.Split(r, ",", StopAfterTwo);
+  Check(splitCount = 2, "Split: stops early when visit returns FALSE");
+
+  splitCount := 0;
+  Rope.Split(NIL, ",", CollectPiece);
+  Check((splitCount = 1) & (splitBuf[0] = ""), "Split of NIL gives one empty piece");
+
+  splitCount := 0;
+  Rope.Split(Rope.FromString("abc"), ",", CollectPiece);
+  Check((splitCount = 1) & (splitBuf[0] = "abc"), "Split with an absent separator gives one piece: the whole rope");
+
+  splitCount := 0;
+  Rope.Split(Rope.FromString("abc"), "", CollectPiece);
+  Check((splitCount = 1) & (splitBuf[0] = "abc"), "Split with an empty separator never splits");
+
+  arr := Rope.SplitArray(r, ",");
+  Check(LEN(arr^) = 4, "SplitArray: piece count");
+  Check(StrEq(arr[0], "a") & StrEq(arr[1], "b") & StrEq(arr[2], "") & StrEq(arr[3], "c"),
+        "SplitArray: piece contents in order");
+
+  node := Rope.SplitList(r, ",");
+  Check(StrEq(node.rope, "a"), "SplitList: first piece");
+  node := node.next;
+  Check(StrEq(node.rope, "b"), "SplitList: second piece");
+  node := node.next;
+  Check(node.rope = NIL, "SplitList: third (empty) piece is NIL");
+  node := node.next;
+  Check(StrEq(node.rope, "c"), "SplitList: fourth piece");
+  node := node.next;
+  Check(node = NIL, "SplitList: list ends after the last piece");
+END CheckSplit;
+
+PROCEDURE CheckIterator;
+  VAR r: Rope.Rope; it: Rope.Iterator; i: LONGINT; ok: BOOLEAN;
+BEGIN
+  (* Two tree nodes: the first leaf is 16 characters, so position 15 is
+     its last and position 16 crosses into the second leaf. *)
+  r := Rope.Cat(Rope.FromString("0123456789012345"), Rope.FromString("abcdefghij"));
+
+  it := Rope.NewIterator(r, 0);
+  Check(it.Pos() = 0, "NewIterator: initial position");
+  Check(it.Get() = "0", "Iterator.Get at the start");
+  it.Incr;
+  Check(it.Get() = "1", "Iterator.Incr moves forward");
+  it.Goto(15);
+  Check(it.Get() = "5", "Iterator.Goto: last character of the first leaf");
+  it.Incr;
+  Check(it.Get() = "a", "Iterator.Get after crossing into the second leaf");
+  it.Decr;
+  Check(it.Get() = "5", "Iterator.Decr moves back across the leaf boundary");
+  it.Move(10);
+  Check(it.Get() = "j", "Iterator.Move: last character of the rope");
+  Check(it.Source() = r, "Iterator.Source returns the rope it was made from");
+  Check(it.Peek(0) = "0", "Iterator.Peek an arbitrary earlier position");
+  Check(it.Pos() = 25, "Iterator.Peek does not change the current position");
+
+  it := Rope.NewIterator(r, 0);
+  ok := TRUE;
+  i := 0;
+  WHILE ok & (i < Rope.Length(r)) DO
+    IF it.Get() # Rope.Fetch(r, i) THEN ok := FALSE END;
+    it.Incr;
+    INC(i)
+  END;
+  Check(ok, "Iterator: walking forward matches Fetch at every position");
+END CheckIterator;
+
 PROCEDURE Summary;
 BEGIN
   Out.Ln;
@@ -235,5 +444,14 @@ BEGIN
   CheckRemove;
   CheckCompareFindRepeat;
   CheckStressAndBalance;
+  CheckFromCharAndMake;
+  CheckMap;
+  CheckAsciiCase;
+  CheckTrim;
+  CheckEscaped;
+  CheckIndexCharAndRFind;
+  CheckBlit;
+  CheckSplit;
+  CheckIterator;
   Summary
 END RopeTest.

@@ -1,7 +1,9 @@
 # RopeTest's full internal check suite; status 0 and every check "ok"
 # confirms Rope.Mod's construction, Cat (incl. the short-leaf merge and
-# absorb cases), Substring, Insert, Remove, Compare/Find/Repeat, and the
-# auto-rebalance / explicit Balance machinery all still behave as designed.
+# absorb cases), Substring, Insert, Remove, Compare/Find/Repeat, the
+# auto-rebalance / explicit Balance machinery, and the newer additions
+# (Map/Mapi, ASCII case, Trim, Escaped, char search, RFind, Blit, Split,
+# and the Iterator) all still behave as designed.
 program RopeTest
 status 0
 output
@@ -74,5 +76,69 @@ ok - Balance preserves content
 ok - Balance does not increase depth
 ok - Balance brings depth down close to optimal for 2000 characters
 ok - A rope built by balanced doubling is strictly balanced
+ok - FromChar builds a one-character rope
+ok - FromChar: length
+ok - FromSubstring: content
+ok - FromSubstring of length 0 is NIL
+ok - Make: content
+ok - Make of length 0 is NIL
+ok - Make of negative length is NIL
+ok - Map shifts every character
+ok - Map of NIL is NIL
+ok - Map preserves tree shape (same Depth)
+ok - Mapi: index threads correctly across a Concat node
+ok - UppercaseAscii
+ok - LowercaseAscii
+ok - CapitalizeAscii
+ok - UncapitalizeAscii
+ok - CapitalizeAscii of NIL is NIL
+ok - UncapitalizeAscii of NIL is NIL
+ok - TrimLeft
+ok - TrimRight
+ok - Trim
+ok - Trim of all-whitespace is NIL
+ok - Trim of NIL is NIL
+ok - Trim leaves a rope with no padding unchanged
+ok - Escaped: double quote
+ok - Escaped: tab
+ok - Escaped: backslash
+ok - Escaped of NIL is NIL
+ok - IndexChar: first occurrence
+ok - IndexChar: from an offset
+ok - IndexChar: not present
+ok - RIndexChar: last occurrence
+ok - RIndexChar: before an offset
+ok - RIndexChar: not present
+ok - Contains: present
+ok - Contains: not present
+ok - RFind: last occurrence searching the whole rope
+ok - RFind: a bound excludes a later occurrence
+ok - RFind: not present
+ok - RFind: empty pattern matches at the bound
+ok - Blit copies into the middle of dst without touching the rest
+ok - Split: visits every piece, including an empty one
+ok - Split: piece contents in order
+ok - Split: stops early when visit returns FALSE
+ok - Split of NIL gives one empty piece
+ok - Split with an absent separator gives one piece: the whole rope
+ok - Split with an empty separator never splits
+ok - SplitArray: piece count
+ok - SplitArray: piece contents in order
+ok - SplitList: first piece
+ok - SplitList: second piece
+ok - SplitList: third (empty) piece is NIL
+ok - SplitList: fourth piece
+ok - SplitList: list ends after the last piece
+ok - NewIterator: initial position
+ok - Iterator.Get at the start
+ok - Iterator.Incr moves forward
+ok - Iterator.Goto: last character of the first leaf
+ok - Iterator.Get after crossing into the second leaf
+ok - Iterator.Decr moves back across the leaf boundary
+ok - Iterator.Move: last character of the rope
+ok - Iterator.Source returns the rope it was made from
+ok - Iterator.Peek an arbitrary earlier position
+ok - Iterator.Peek does not change the current position
+ok - Iterator: walking forward matches Fetch at every position
 
-69/69 tests passed.
+133/133 tests passed.

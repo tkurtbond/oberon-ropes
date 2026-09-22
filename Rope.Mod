@@ -65,6 +65,40 @@ TYPE
      stops the iteration early. *)
   Visitor* = PROCEDURE (ch: CHAR): BOOLEAN;
 
+  (* Called by Map for each character; returns the character to put in
+     its place. *)
+  Mapper* = PROCEDURE (ch: CHAR): CHAR;
+
+  (* Called by Mapi for each character, together with its index. *)
+  IndexedMapper* = PROCEDURE (i: LONGINT; ch: CHAR): CHAR;
+
+  (* Called by Split for each piece, left to right; returning FALSE stops
+     the splitting early. *)
+  Visitor2* = PROCEDURE (piece: Rope): BOOLEAN;
+
+  (* The result of SplitArray: one entry per piece, in order. *)
+  Pieces* = POINTER TO ARRAY OF Rope;
+
+  (* One node of the result of SplitList: a singly linked list of pieces,
+     in order. *)
+  Piece* = POINTER TO PieceDesc;
+  PieceDesc* = RECORD
+    rope*: Rope;
+    next*: Piece
+  END;
+
+  (* A cursor for stepping through a rope by index.  Caches the leaf
+     covering its current position, so repeated Get/Incr/Decr calls that
+     stay within one leaf are O(1); only crossing into the next leaf costs
+     Fetch's O(log(length r)).  See the Iterator section below. *)
+  Iterator* = POINTER TO IteratorDesc;
+  IteratorDesc* = RECORD
+    r: Rope;
+    pos: LONGINT;
+    leaf: Leaf;
+    leafStart: LONGINT  (* absolute index of leaf.chars[0] in r; only meaningful if leaf # NIL *)
+  END;
+
 VAR
   (* minLength[d] is the least total length a rope balanced (per the
      paper's definition: length(r) >= minLength[depth(r)]) at depth d may
@@ -84,6 +118,15 @@ BEGIN
   IF a > b THEN RETURN a END;
   RETURN b
 END MaxInt;
+
+(* The length of s up to its terminating 0X, or LEN(s) if it has none. *)
+PROCEDURE StrLen(s: ARRAY OF CHAR): LONGINT;
+  VAR len: LONGINT;
+BEGIN
+  len := 0;
+  WHILE (len < LEN(s)) & (s[len] # 0X) DO INC(len) END;
+  RETURN len
+END StrLen;
 
 (* A new leaf copying src[start .. start + len - 1].  len must be > 0. *)
 PROCEDURE NewLeaf(src: ARRAY OF CHAR; start, len: LONGINT): Leaf;
@@ -183,13 +226,19 @@ BEGIN
   RETURN result
 END Cat;
 
-(* Still benefits from SimpleCat's short-leaf merge, so appending one
-   character at a time in a loop does not grow an ever-deeper tree. *)
-PROCEDURE AppendChar*(r: Rope; ch: CHAR): Rope;
+(* A rope consisting of the single character ch. *)
+PROCEDURE FromChar*(ch: CHAR): Rope;
   VAR one: ARRAY 1 OF CHAR;
 BEGIN
   one[0] := ch;
-  RETURN Cat(r, NewLeaf(one, 0, 1))
+  RETURN NewLeaf(one, 0, 1)
+END FromChar;
+
+(* Still benefits from SimpleCat's short-leaf merge, so appending one
+   character at a time in a loop does not grow an ever-deeper tree. *)
+PROCEDURE AppendChar*(r: Rope; ch: CHAR): Rope;
+BEGIN
+  RETURN Cat(r, FromChar(ch))
 END AppendChar;
 
 (* Whether r is balanced per the paper's definition: length(r) >=
@@ -279,6 +328,108 @@ BEGIN
   RETURN ConcatForest(forest)
 END Balance;
 
+(* --- Iterator --- *)
+
+(* Descends from the root to the leaf covering it.pos, caching it in
+   it.leaf/it.leafStart.  Skipped if the cached leaf already covers
+   it.pos.  Traps (HALT) if it.pos is out of bounds, the same convention
+   as Fetch. *)
+PROCEDURE (it: Iterator) Locate;
+  VAR r: Rope; c: Concat; base: LONGINT;
+BEGIN
+  IF (it.r = NIL) OR (it.pos < 0) OR (it.pos >= it.r.length) THEN HALT(1) END;
+  IF (it.leaf # NIL) & (it.pos >= it.leafStart) & (it.pos < it.leafStart + it.leaf.length) THEN
+    RETURN
+  END;
+  r := it.r;
+  base := 0;
+  WHILE ~(r IS Leaf) DO
+    c := r(Concat);
+    IF it.pos - base < c.left.length THEN
+      r := c.left
+    ELSE
+      base := base + c.left.length;
+      r := c.right
+    END
+  END;
+  it.leaf := r(Leaf);
+  it.leafStart := base
+END Locate;
+
+(* A new iterator for r, initially at position pos.  pos need not be a
+   valid position of r -- that is only checked by Get and Peek -- so
+   Move, Goto, Incr and Decr never trap by themselves. *)
+PROCEDURE NewIterator*(r: Rope; pos: LONGINT): Iterator;
+  VAR it: Iterator;
+BEGIN
+  NEW(it);
+  it.r := r;
+  it.pos := pos;
+  it.leaf := NIL;
+  it.leafStart := 0;
+  RETURN it
+END NewIterator;
+
+(* The character at the iterator's current position.  O(1) if the
+   position stayed within the leaf last visited, else O(log(length r)). *)
+PROCEDURE (it: Iterator) Get*(): CHAR;
+BEGIN
+  it.Locate;
+  RETURN it.leaf.chars[it.pos - it.leafStart]
+END Get;
+
+(* The character at position i of the rope the iterator was made from,
+   without changing the iterator's current position.  Also updates the
+   cached leaf to cover i, so a Peek near the current position -- or a
+   sequence of nearby Peeks -- is cheaper than an unrelated Fetch. *)
+PROCEDURE (it: Iterator) Peek*(i: LONGINT): CHAR;
+  VAR savedPos: LONGINT; ch: CHAR;
+BEGIN
+  savedPos := it.pos;
+  it.pos := i;
+  it.Locate;
+  ch := it.leaf.chars[i - it.leafStart];
+  it.pos := savedPos;
+  RETURN ch
+END Peek;
+
+(* The iterator's current position.  May not be a valid position of its
+   rope. *)
+PROCEDURE (it: Iterator) Pos*(): LONGINT;
+BEGIN
+  RETURN it.pos
+END Pos;
+
+(* Moves the iterator to the next character. *)
+PROCEDURE (it: Iterator) Incr*;
+BEGIN
+  INC(it.pos)
+END Incr;
+
+(* Moves the iterator to the previous character. *)
+PROCEDURE (it: Iterator) Decr*;
+BEGIN
+  DEC(it.pos)
+END Decr;
+
+(* Moves the iterator to position pos. *)
+PROCEDURE (it: Iterator) Goto*(pos: LONGINT);
+BEGIN
+  it.pos := pos
+END Goto;
+
+(* Moves the iterator by delta characters (negative or zero allowed). *)
+PROCEDURE (it: Iterator) Move*(delta: LONGINT);
+BEGIN
+  it.pos := it.pos + delta
+END Move;
+
+(* The rope the iterator was constructed from. *)
+PROCEDURE (it: Iterator) Source*(): Rope;
+BEGIN
+  RETURN it.r
+END Source;
+
 (* --- Substring --- *)
 
 (* Precondition: r # NIL, 0 <= start, start + len <= Length(r), len > 0. *)
@@ -310,6 +461,19 @@ BEGIN
   IF len <= 0 THEN RETURN NIL END;
   RETURN SubstrHelper(r, start, len)
 END Substring;
+
+(* Copies len characters of r starting at srcStart into dst starting at
+   dstStart; no 0X terminator is written, unlike ToString.
+   Precondition: 0 <= srcStart, srcStart + len <= Length(r), 0 <= dstStart,
+   dstStart + len <= LEN(dst).  Traps (HALT) if violated. *)
+PROCEDURE Blit*(r: Rope; srcStart: LONGINT; VAR dst: ARRAY OF CHAR; dstStart, len: LONGINT);
+  VAR i: LONGINT;
+BEGIN
+  IF (srcStart < 0) OR (srcStart + len > Length(r)) OR (dstStart < 0) OR (dstStart + len > LEN(dst)) THEN
+    HALT(1)
+  END;
+  FOR i := 0 TO len - 1 DO dst[dstStart + i] := Fetch(r, srcStart + i) END
+END Blit;
 
 (* r with ins spliced in before index pos: Substring(r, 0, pos) followed by
    ins followed by Substring(r, pos, Length(r) - pos).  pos is clamped to
@@ -344,6 +508,42 @@ BEGIN
   RETURN Cat(left, right)
 END Remove;
 
+(* --- Search char --- *)
+
+(* The index of the first occurrence of ch at or after from, or -1. *)
+PROCEDURE IndexChar*(r: Rope; ch: CHAR; from: LONGINT): LONGINT;
+  VAR i, len: LONGINT;
+BEGIN
+  len := Length(r);
+  IF from < 0 THEN from := 0 END;
+  i := from;
+  WHILE i < len DO
+    IF Fetch(r, i) = ch THEN RETURN i END;
+    INC(i)
+  END;
+  RETURN -1
+END IndexChar;
+
+(* The index of the last occurrence of ch at or before "before", or -1. *)
+PROCEDURE RIndexChar*(r: Rope; ch: CHAR; before: LONGINT): LONGINT;
+  VAR i, len: LONGINT;
+BEGIN
+  len := Length(r);
+  IF before > len - 1 THEN before := len - 1 END;
+  i := before;
+  WHILE i >= 0 DO
+    IF Fetch(r, i) = ch THEN RETURN i END;
+    DEC(i)
+  END;
+  RETURN -1
+END RIndexChar;
+
+(* Whether ch occurs in r at or after from. *)
+PROCEDURE Contains*(r: Rope; ch: CHAR; from: LONGINT): BOOLEAN;
+BEGIN
+  RETURN IndexChar(r, ch, from) >= 0
+END Contains;
+
 (* --- Comparison, search, iteration --- *)
 
 (* <0, 0 or >0, like strcmp: lexicographic by character, then by length. *)
@@ -375,8 +575,7 @@ END Equal;
 PROCEDURE Find*(r: Rope; pattern: ARRAY OF CHAR; from: LONGINT): LONGINT;
   VAR patLen, rLen, i, j: LONGINT; match: BOOLEAN;
 BEGIN
-  patLen := 0;
-  WHILE (patLen < LEN(pattern)) & (pattern[patLen] # 0X) DO INC(patLen) END;
+  patLen := StrLen(pattern);
   rLen := Length(r);
   IF from < 0 THEN from := 0 END;
   IF patLen = 0 THEN
@@ -396,6 +595,37 @@ BEGIN
   END;
   RETURN -1
 END Find;
+
+(* The index of the last occurrence of pattern starting at or before
+   "before", or -1.  RFind(r, pattern, Length(r)) searches the whole
+   rope, mirroring how Find(r, pattern, 0) does.  The empty pattern
+   matches at "before" itself (clamped into [0, Length(r)]), mirroring
+   Find's empty-pattern convention. *)
+PROCEDURE RFind*(r: Rope; pattern: ARRAY OF CHAR; before: LONGINT): LONGINT;
+  VAR patLen, rLen, i, j: LONGINT; match: BOOLEAN;
+BEGIN
+  patLen := StrLen(pattern);
+  rLen := Length(r);
+  IF patLen = 0 THEN
+    IF before < 0 THEN RETURN -1 END;
+    IF before > rLen THEN before := rLen END;
+    RETURN before
+  END;
+  IF before > rLen - patLen THEN before := rLen - patLen END;
+  IF before < 0 THEN RETURN -1 END;
+  i := before;
+  WHILE i >= 0 DO
+    match := TRUE;
+    j := 0;
+    WHILE match & (j < patLen) DO
+      IF Fetch(r, i + j) # pattern[j] THEN match := FALSE END;
+      INC(j)
+    END;
+    IF match THEN RETURN i END;
+    DEC(i)
+  END;
+  RETURN -1
+END RFind;
 
 (* Returns FALSE if visit asked to stop partway through. *)
 PROCEDURE IterateHelper(r: Rope; visit: Visitor): BOOLEAN;
@@ -424,6 +654,120 @@ PROCEDURE Iterate*(r: Rope; visit: Visitor);
 BEGIN
   ignore := IterateHelper(r, visit)
 END Iterate;
+
+(* --- Split --- *)
+
+(* The splitting rule shared by Split, SplitArray and SplitList: r's
+   pieces are the maximal runs between non-overlapping occurrences of
+   sep, found by repeated Find starting just after each match.  A NIL r,
+   or a sep that does not occur in r, each give a single piece, r itself.
+   A leading, trailing or doubled sep gives an empty piece, so there are
+   always exactly (number of occurrences of sep) + 1 pieces, the same
+   convention as Python's str.split (e.g. "a,b,".split(",") is
+   ["a", "b", ""]).  An empty sep never splits -- there is no occurrence
+   to split on -- so it too always gives a single piece, r itself. *)
+
+(* Advances start past the next piece of r (and the sep, if any, that
+   follows it), returning that piece.  sepLen must be StrLen(sep) > 0.
+   Sets last to TRUE if the returned piece is the final one. *)
+PROCEDURE NextPiece(r: Rope; sep: ARRAY OF CHAR; sepLen: LONGINT; VAR start: LONGINT; VAR last: BOOLEAN): Rope;
+  VAR pos, rLen: LONGINT; piece: Rope;
+BEGIN
+  rLen := Length(r);
+  pos := Find(r, sep, start);
+  IF pos < 0 THEN
+    piece := Substring(r, start, rLen - start);
+    last := TRUE
+  ELSE
+    piece := Substring(r, start, pos - start);
+    start := pos + sepLen;
+    last := FALSE
+  END;
+  RETURN piece
+END NextPiece;
+
+(* How many pieces r splits into on sep (sepLen = StrLen(sep) > 0),
+   without building any of them -- just counts occurrences of sep. *)
+PROCEDURE CountPieces(r: Rope; sep: ARRAY OF CHAR; sepLen: LONGINT): LONGINT;
+  VAR pos, start, count: LONGINT;
+BEGIN
+  count := 1;
+  start := 0;
+  pos := Find(r, sep, start);
+  WHILE pos >= 0 DO
+    INC(count);
+    start := pos + sepLen;
+    pos := Find(r, sep, start)
+  END;
+  RETURN count
+END CountPieces;
+
+(* Calls visit for each piece of r as split on sep (see above), left to
+   right.  Stops early if visit returns FALSE. *)
+PROCEDURE Split*(r: Rope; sep: ARRAY OF CHAR; visit: Visitor2);
+  VAR sepLen, start: LONGINT; last, more: BOOLEAN;
+BEGIN
+  sepLen := StrLen(sep);
+  IF sepLen = 0 THEN
+    more := visit(r);
+    RETURN
+  END;
+  start := 0;
+  last := FALSE;
+  more := TRUE;
+  WHILE more & ~last DO
+    more := visit(NextPiece(r, sep, sepLen, start, last))
+  END
+END Split;
+
+(* r split on sep (see above), as an array with one entry per piece, in
+   order. *)
+PROCEDURE SplitArray*(r: Rope; sep: ARRAY OF CHAR): Pieces;
+  VAR sepLen, start, n, i: LONGINT; last: BOOLEAN; result: Pieces;
+BEGIN
+  sepLen := StrLen(sep);
+  IF sepLen = 0 THEN
+    NEW(result, 1);
+    result[0] := r;
+    RETURN result
+  END;
+  n := CountPieces(r, sep, sepLen);
+  NEW(result, n);
+  start := 0;
+  last := FALSE;
+  i := 0;
+  WHILE ~last DO
+    result[i] := NextPiece(r, sep, sepLen, start, last);
+    INC(i)
+  END;
+  RETURN result
+END SplitArray;
+
+(* r split on sep (see above), as a singly linked list of pieces, in
+   order. *)
+PROCEDURE SplitList*(r: Rope; sep: ARRAY OF CHAR): Piece;
+  VAR sepLen, start: LONGINT; last: BOOLEAN; head, tail, node: Piece;
+BEGIN
+  sepLen := StrLen(sep);
+  IF sepLen = 0 THEN
+    NEW(head);
+    head.rope := r;
+    head.next := NIL;
+    RETURN head
+  END;
+  head := NIL;
+  tail := NIL;
+  start := 0;
+  last := FALSE;
+  WHILE ~last DO
+    NEW(node);
+    node.rope := NextPiece(r, sep, sepLen, start, last);
+    node.next := NIL;
+    IF tail = NIL THEN head := node ELSE tail.next := node END;
+    tail := node
+  END;
+  RETURN head
+END SplitList;
 
 PROCEDURE ToStringHelper(r: Rope; VAR s: ARRAY OF CHAR; VAR i, cap: LONGINT);
   VAR c: Concat; leaf: Leaf; j: LONGINT;
@@ -461,11 +805,20 @@ END ToString;
 PROCEDURE FromString*(s: ARRAY OF CHAR): Rope;
   VAR len: LONGINT;
 BEGIN
-  len := 0;
-  WHILE (len < LEN(s)) & (s[len] # 0X) DO INC(len) END;
+  len := StrLen(s);
   IF len = 0 THEN RETURN NIL END;
   RETURN NewLeaf(s, 0, len)
 END FromString;
+
+(* The characters of s[start .. start+len-1].  NIL if len <= 0.
+   Precondition: 0 <= start, start + len <= LEN(s).  Traps (HALT) if
+   violated. *)
+PROCEDURE FromSubstring*(s: ARRAY OF CHAR; start, len: LONGINT): Rope;
+BEGIN
+  IF len <= 0 THEN RETURN NIL END;
+  IF (start < 0) OR (start + len > LEN(s)) THEN HALT(1) END;
+  RETURN NewLeaf(s, start, len)
+END FromSubstring;
 
 (* n concatenated copies of r, built with O(log n) concatenations by
    binary doubling.  NIL if r is NIL or n <= 0. *)
@@ -483,6 +836,189 @@ BEGIN
   END;
   RETURN result
 END Repeat;
+
+(* A rope of len characters, all ch.  NIL if len <= 0. *)
+PROCEDURE Make*(len: LONGINT; ch: CHAR): Rope;
+BEGIN
+  RETURN Repeat(FromChar(ch), len)
+END Make;
+
+(* --- Map --- *)
+
+PROCEDURE MapHelper(r: Rope; f: Mapper): Rope;
+  VAR leaf, newLeaf: Leaf; c: Concat; i: LONGINT; left, right: Rope;
+BEGIN
+  IF r = NIL THEN RETURN NIL END;
+  IF r IS Leaf THEN
+    leaf := r(Leaf);
+    NEW(newLeaf);
+    NEW(newLeaf.chars, leaf.length);
+    FOR i := 0 TO leaf.length - 1 DO newLeaf.chars[i] := f(leaf.chars[i]) END;
+    newLeaf.length := leaf.length;
+    newLeaf.depth := 0;
+    RETURN newLeaf
+  END;
+  c := r(Concat);
+  left := MapHelper(c.left, f);
+  right := MapHelper(c.right, f);
+  RETURN NewConcat(left, right)
+END MapHelper;
+
+(* r with f applied to every character, in increasing index order.  The
+   result has the same tree shape as r (same Depth, no Balance needed).
+   NIL if r is NIL. *)
+PROCEDURE Map*(r: Rope; f: Mapper): Rope;
+BEGIN
+  RETURN MapHelper(r, f)
+END Map;
+
+PROCEDURE MapiHelper(r: Rope; f: IndexedMapper; VAR idx: LONGINT): Rope;
+  VAR leaf, newLeaf: Leaf; c: Concat; i: LONGINT; left, right: Rope;
+BEGIN
+  IF r = NIL THEN RETURN NIL END;
+  IF r IS Leaf THEN
+    leaf := r(Leaf);
+    NEW(newLeaf);
+    NEW(newLeaf.chars, leaf.length);
+    FOR i := 0 TO leaf.length - 1 DO
+      newLeaf.chars[i] := f(idx, leaf.chars[i]);
+      INC(idx)
+    END;
+    newLeaf.length := leaf.length;
+    newLeaf.depth := 0;
+    RETURN newLeaf
+  END;
+  c := r(Concat);
+  left := MapiHelper(c.left, f, idx);
+  right := MapiHelper(c.right, f, idx);
+  RETURN NewConcat(left, right)
+END MapiHelper;
+
+(* Same as Map, but f is also passed the index of the character. *)
+PROCEDURE Mapi*(r: Rope; f: IndexedMapper): Rope;
+  VAR idx: LONGINT;
+BEGIN
+  idx := 0;
+  RETURN MapiHelper(r, f, idx)
+END Mapi;
+
+(* --- ASCII case --- *)
+
+PROCEDURE UpperChar(ch: CHAR): CHAR;
+BEGIN
+  IF (ch >= "a") & (ch <= "z") THEN RETURN CAP(ch) END;
+  RETURN ch
+END UpperChar;
+
+PROCEDURE LowerChar(ch: CHAR): CHAR;
+BEGIN
+  IF (ch >= "A") & (ch <= "Z") THEN RETURN CHR(ORD(ch) + 32) END;
+  RETURN ch
+END LowerChar;
+
+(* r with every ASCII lowercase letter translated to uppercase; other
+   characters, including accented letters, are left unchanged. *)
+PROCEDURE UppercaseAscii*(r: Rope): Rope;
+BEGIN
+  RETURN Map(r, UpperChar)
+END UppercaseAscii;
+
+(* r with every ASCII uppercase letter translated to lowercase; other
+   characters are left unchanged. *)
+PROCEDURE LowercaseAscii*(r: Rope): Rope;
+BEGIN
+  RETURN Map(r, LowerChar)
+END LowercaseAscii;
+
+(* r with its first character uppercased (ASCII only); the rest is
+   unchanged.  NIL is NIL. *)
+PROCEDURE CapitalizeAscii*(r: Rope): Rope;
+BEGIN
+  IF r = NIL THEN RETURN NIL END;
+  RETURN Cat(FromChar(UpperChar(Fetch(r, 0))), Substring(r, 1, Length(r) - 1))
+END CapitalizeAscii;
+
+(* r with its first character lowercased (ASCII only); the rest is
+   unchanged.  NIL is NIL. *)
+PROCEDURE UncapitalizeAscii*(r: Rope): Rope;
+BEGIN
+  IF r = NIL THEN RETURN NIL END;
+  RETURN Cat(FromChar(LowerChar(Fetch(r, 0))), Substring(r, 1, Length(r) - 1))
+END UncapitalizeAscii;
+
+(* --- Trim --- *)
+
+PROCEDURE IsSpace(ch: CHAR): BOOLEAN;
+BEGIN
+  RETURN (ch = " ") OR (ch = 9X) OR (ch = 0AX) OR (ch = 0CX) OR (ch = 0DX)
+END IsSpace;
+
+(* r with leading whitespace (space, tab, newline, carriage return, form
+   feed) removed. *)
+PROCEDURE TrimLeft*(r: Rope): Rope;
+  VAR i, len: LONGINT;
+BEGIN
+  len := Length(r);
+  i := 0;
+  WHILE (i < len) & IsSpace(Fetch(r, i)) DO INC(i) END;
+  RETURN Substring(r, i, len - i)
+END TrimLeft;
+
+(* r with trailing whitespace removed. *)
+PROCEDURE TrimRight*(r: Rope): Rope;
+  VAR len: LONGINT;
+BEGIN
+  len := Length(r);
+  WHILE (len > 0) & IsSpace(Fetch(r, len - 1)) DO DEC(len) END;
+  RETURN Substring(r, 0, len)
+END TrimRight;
+
+(* r with both leading and trailing whitespace removed. *)
+PROCEDURE Trim*(r: Rope): Rope;
+BEGIN
+  RETURN TrimLeft(TrimRight(r))
+END Trim;
+
+(* --- Escaping --- *)
+
+PROCEDURE EscapeChar(ch: CHAR; acc: Rope): Rope;
+  VAR buf: ARRAY 5 OF CHAR; v: INTEGER;
+BEGIN
+  IF ch = "\" THEN
+    RETURN Cat(acc, FromString("\\"))
+  ELSIF ch = '"' THEN
+    RETURN Cat(acc, FromString('\"'))
+  ELSIF ch = 0AX THEN
+    RETURN Cat(acc, FromString("\n"))
+  ELSIF ch = 09X THEN
+    RETURN Cat(acc, FromString("\t"))
+  ELSIF ch = 0DX THEN
+    RETURN Cat(acc, FromString("\r"))
+  ELSIF (ORD(ch) < 32) OR (ORD(ch) >= 127) THEN
+    v := ORD(ch);
+    buf[0] := "\";
+    buf[1] := CHR(ORD("0") + v DIV 100);
+    buf[2] := CHR(ORD("0") + (v DIV 10) MOD 10);
+    buf[3] := CHR(ORD("0") + v MOD 10);
+    buf[4] := 0X;
+    RETURN Cat(acc, FromString(buf))
+  ELSE
+    RETURN AppendChar(acc, ch)
+  END
+END EscapeChar;
+
+(* r with backslash, double quote, newline, tab and carriage return
+   replaced by their two-character backslash escapes, and any other
+   non-printable character (ORD(ch) < 32 or >= 127) replaced by a
+   backslash followed by its three-digit decimal code. *)
+PROCEDURE Escaped*(r: Rope): Rope;
+  VAR result: Rope; i, len: LONGINT;
+BEGIN
+  result := NIL;
+  len := Length(r);
+  FOR i := 0 TO len - 1 DO result := EscapeChar(Fetch(r, i), result) END;
+  RETURN result
+END Escaped;
 
 BEGIN
   InitMinLength

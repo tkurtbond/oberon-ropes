@@ -1,0 +1,8 @@
+program RopeTool
+arg contains
+arg abcabc
+arg z
+arg 0
+status 0
+output
+FALSE
