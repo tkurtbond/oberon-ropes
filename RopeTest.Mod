@@ -120,6 +120,24 @@ BEGIN
   Check(s = NIL, "Substring starting past the end is NIL");
 END CheckSubstring;
 
+PROCEDURE CheckInsert;
+  VAR r: Rope.Rope;
+BEGIN
+  r := Rope.FromString("hello world");
+
+  Check(StrEq(Rope.Insert(r, 5, Rope.FromString(",")), "hello, world"), "Insert in the middle");
+  Check(StrEq(Rope.Insert(r, 0, Rope.FromString(">> ")), ">> hello world"), "Insert at the start");
+  Check(StrEq(Rope.Insert(r, 11, Rope.FromString("!")), "hello world!"), "Insert at the end");
+  Check(StrEq(Rope.Insert(r, 100, Rope.FromString("!")), "hello world!"), "Insert clamps a too-large pos to the end");
+  Check(StrEq(Rope.Insert(r, -5, Rope.FromString(">> ")), ">> hello world"), "Insert clamps a negative pos to the start");
+
+  Check(StrEq(Rope.Insert(NIL, 0, Rope.FromString("x")), "x"), "Insert into NIL is just the inserted rope");
+  Check(StrEq(Rope.Insert(r, 5, NIL), "hello world"), "Insert of NIL leaves the rope unchanged");
+  Check(Rope.Insert(NIL, 0, NIL) = NIL, "Insert of NIL into NIL is NIL");
+
+  Check(Rope.Length(Rope.Insert(r, 5, Rope.FromString(","))) = 12, "Insert: resulting length");
+END CheckInsert;
+
 PROCEDURE CheckCompareFindRepeat;
   VAR r: Rope.Rope;
 BEGIN
@@ -194,6 +212,7 @@ BEGIN
   CheckLengthAndFetch;
   CheckCat;
   CheckSubstring;
+  CheckInsert;
   CheckCompareFindRepeat;
   CheckStressAndBalance;
   Summary

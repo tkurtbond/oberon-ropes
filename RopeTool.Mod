@@ -12,7 +12,7 @@ IMPORT ArgParser, Out, Rope;
 
 VAR
   parser, catParser, subParser, lenParser, fetchParser,
-  cmpParser, findParser, repeatParser: ArgParser.Parser;
+  cmpParser, findParser, repeatParser, insertParser: ArgParser.Parser;
 
   catCount: INTEGER; catA: Rope.Rope;
   subCount: INTEGER; subS: Rope.Rope; subStart: LONGINT;
@@ -20,6 +20,7 @@ VAR
   cmpCount: INTEGER; cmpA: Rope.Rope;
   findCount: INTEGER; findS: Rope.Rope; findPattern: ArgParser.String;
   repeatCount: INTEGER; repeatS: Rope.Rope;
+  insertCount: INTEGER; insertS: Rope.Rope; insertPos: LONGINT;
 
 PROCEDURE PrintRope(r: Rope.Rope);
   VAR buf: ARRAY ArgParser.MaxStringLength + 1 OF CHAR;
@@ -142,6 +143,21 @@ BEGIN
   RETURN TRUE
 END RepeatArgHandler;
 
+(* --- insert S POS INS --- *)
+
+PROCEDURE InsertArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF insertCount = 0 THEN
+    insertS := Rope.FromString(arg)
+  ELSIF insertCount = 1 THEN
+    insertPos := ParseInt(arg)
+  ELSIF insertCount = 2 THEN
+    PrintRope(Rope.Insert(insertS, insertPos, Rope.FromString(arg))); Out.Ln
+  END;
+  INC(insertCount);
+  RETURN TRUE
+END InsertArgHandler;
+
 BEGIN
   catCount := 0;
   subCount := 0;
@@ -149,6 +165,7 @@ BEGIN
   cmpCount := 0;
   findCount := 0;
   repeatCount := 0;
+  insertCount := 0;
 
   catParser := ArgParser.NewParser("cat A B  Print the concatenation of A and B.", CatArgHandler);
   subParser := ArgParser.NewParser("sub S START LEN  Print the substring of S from START, LEN characters.", SubArgHandler);
@@ -157,6 +174,7 @@ BEGIN
   cmpParser := ArgParser.NewParser("cmp A B  Print -1, 0 or 1: how A compares to B.", CmpArgHandler);
   findParser := ArgParser.NewParser("find S PATTERN FROM  Print the index of PATTERN in S at or after FROM, or -1.", FindArgHandler);
   repeatParser := ArgParser.NewParser("repeat S N  Print N concatenated copies of S.", RepeatArgHandler);
+  insertParser := ArgParser.NewParser("insert S POS INS  Print S with INS inserted before index POS.", InsertArgHandler);
 
   parser := ArgParser.NewParser("ropetool [options] command arguments...", TopArgHandler);
   parser.AddOption(ArgParser.MakeOption("h", "help", "Display help message and exit.", DoHelp));
@@ -167,6 +185,7 @@ BEGIN
   parser.AddCommand(ArgParser.MakeCommand("cmp", cmpParser));
   parser.AddCommand(ArgParser.MakeCommand("find", findParser));
   parser.AddCommand(ArgParser.MakeCommand("repeat", repeatParser));
+  parser.AddCommand(ArgParser.MakeCommand("insert", insertParser));
 
   parser.ParseArguments(1)
 END RopeTool.

@@ -1,7 +1,7 @@
 # RopeTest's full internal check suite; status 0 and every check "ok"
 # confirms Rope.Mod's construction, Cat (incl. the short-leaf merge and
-# absorb cases), Substring, Compare/Find/Repeat, and the auto-rebalance /
-# explicit Balance machinery all still behave as designed.
+# absorb cases), Substring, Insert, Compare/Find/Repeat, and the
+# auto-rebalance / explicit Balance machinery all still behave as designed.
 program RopeTest
 status 0
 output
@@ -32,6 +32,15 @@ ok - Substring clamps a negative start
 ok - Substring clamps an over-length end
 ok - Substring spanning two tree nodes
 ok - Substring starting past the end is NIL
+ok - Insert in the middle
+ok - Insert at the start
+ok - Insert at the end
+ok - Insert clamps a too-large pos to the end
+ok - Insert clamps a negative pos to the start
+ok - Insert into NIL is just the inserted rope
+ok - Insert of NIL leaves the rope unchanged
+ok - Insert of NIL into NIL is NIL
+ok - Insert: resulting length
 ok - Compare equal ropes
 ok - Compare less-than
 ok - Compare greater-than
@@ -56,4 +65,4 @@ ok - Balance does not increase depth
 ok - Balance brings depth down close to optimal for 2000 characters
 ok - A rope built by balanced doubling is strictly balanced
 
-50/50 tests passed.
+59/59 tests passed.

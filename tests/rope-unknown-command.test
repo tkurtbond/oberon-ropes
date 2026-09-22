@@ -27,3 +27,6 @@ find S PATTERN FROM  Print the index of PATTERN in S at or after FROM, or -1.
 
 
 repeat S N  Print N concatenated copies of S.
+
+
+insert S POS INS  Print S with INS inserted before index POS.

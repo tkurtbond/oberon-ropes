@@ -311,6 +311,21 @@ BEGIN
   RETURN SubstrHelper(r, start, len)
 END Substring;
 
+(* r with ins spliced in before index pos: Substring(r, 0, pos) followed by
+   ins followed by Substring(r, pos, Length(r) - pos).  pos is clamped to
+   [0, Length(r)], so a too-large pos appends and a negative pos prepends,
+   the same convention Substring uses for its own start.  NIL r or NIL ins
+   are handled by Substring and Cat without any special-casing here. *)
+PROCEDURE Insert*(r: Rope; pos: LONGINT; ins: Rope): Rope;
+  VAR left, right: Rope;
+BEGIN
+  IF pos < 0 THEN pos := 0 END;
+  IF pos > Length(r) THEN pos := Length(r) END;
+  left := Substring(r, 0, pos);
+  right := Substring(r, pos, Length(r) - pos);
+  RETURN Cat(Cat(left, ins), right)
+END Insert;
+
 (* --- Comparison, search, iteration --- *)
 
 (* <0, 0 or >0, like strcmp: lexicographic by character, then by length. *)
