@@ -1,0 +1,29 @@
+program RopeTool
+arg nope
+status 1
+output
+Error: unknown command: nope
+ropetool [options] command arguments...
+
+  -h, --help
+      Display help message and exit.
+
+cat A B  Print the concatenation of A and B.
+
+
+sub S START LEN  Print the substring of S from START, LEN characters.
+
+
+len S  Print the length of S.
+
+
+fetch S I  Print the character of S at index I.
+
+
+cmp A B  Print -1, 0 or 1: how A compares to B.
+
+
+find S PATTERN FROM  Print the index of PATTERN in S at or after FROM, or -1.
+
+
+repeat S N  Print N concatenated copies of S.

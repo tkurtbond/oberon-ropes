@@ -2,20 +2,26 @@ VOC=voc
 VOCFLAGS=-f
 VOCMAIN=-m
 
-PROGRAMS=Simple Commands OneName OModPath
+PROGRAMS=Simple Commands OneName OModPath RopeTool RopeTest
 
 .PHONY: all clean test test-verbose
 
 all: $(PROGRAMS)
 
-# The example programs all import ArgParser, so they need its symbol
-# file (built along with ArgParser.o) and are rebuilt when it changes.
-$(PROGRAMS): ArgParser.o
+# All the example programs except RopeTest import ArgParser, so they need
+# its symbol file (built along with ArgParser.o) and are rebuilt when it
+# changes.
+$(filter-out RopeTest,$(PROGRAMS)): ArgParser.o
 
 # OModPath also writes to standard error, with Err, and tests whether files
 # exist, with FileTest.  They are Err.Mod and FileTest.Mod here for voc, and
 # poc-rtl/Err.Mod and poc-rtl/FileTest.Mod for poc.
 OModPath: Err.o FileTest.o
+
+# RopeTool and RopeTest both import Rope, so they need its symbol file too.
+# Rope.Mod, RopeTool.Mod and RopeTest.Mod are voc-only for now: they are
+# not built by pocGNUmakefile.
+RopeTool RopeTest: Rope.o
 
 
 %: %.Mod

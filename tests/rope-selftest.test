@@ -1,0 +1,59 @@
+# RopeTest's full internal check suite; status 0 and every check "ok"
+# confirms Rope.Mod's construction, Cat (incl. the short-leaf merge and
+# absorb cases), Substring, Compare/Find/Repeat, and the auto-rebalance /
+# explicit Balance machinery all still behave as designed.
+program RopeTest
+status 0
+output
+ok - FromString of an empty string is NIL
+ok - IsEmpty(NIL)
+ok - ~IsEmpty(FromString(x))
+ok - FromString/ToString round trip
+ok - Length of FromString(hello)
+ok - ToString(NIL) gives an empty string
+ok - ToString truncates to fit, like ArgParser.String
+ok - Length
+ok - Fetch first character
+ok - Fetch last character
+ok - Length(NIL) = 0
+ok - Cat(NIL, x) = x
+ok - Cat(x, NIL) = x
+ok - Cat of two short leaves: content
+ok - Cat of two short leaves merges into one leaf
+ok - First concat past the short-leaf limit has depth 1
+ok - Second concat past the short-leaf limit has depth 2
+ok - Absorbing a short leaf: content
+ok - Absorbing a short leaf keeps depth from growing
+ok - Cat of two large leaves: content
+ok - Cat of two large leaves has depth 1
+ok - Substring of the whole rope
+ok - Substring of length 0 is NIL
+ok - Substring clamps a negative start
+ok - Substring clamps an over-length end
+ok - Substring spanning two tree nodes
+ok - Substring starting past the end is NIL
+ok - Compare equal ropes
+ok - Compare less-than
+ok - Compare greater-than
+ok - Compare: shorter prefix sorts first
+ok - Equal
+ok - ~Equal
+ok - Find a substring present in the rope
+ok - Find a substring not present
+ok - Find starting from an offset
+ok - Find of the empty pattern
+ok - Repeat content
+ok - Repeat length
+ok - Repeat 0 times is NIL
+ok - Repeat of NIL is NIL
+ok - AppendChar x2000: length
+ok - AppendChar x2000: first character
+ok - AppendChar x2000: last character
+ok - AppendChar x2000: every character matches
+ok - AppendChar x2000: depth stays bounded well below MaxDepth
+ok - Balance preserves content
+ok - Balance does not increase depth
+ok - Balance brings depth down close to optimal for 2000 characters
+ok - A rope built by balanced doubling is strictly balanced
+
+50/50 tests passed.

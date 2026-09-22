@@ -1,0 +1,10 @@
+# Search from index 1, so the match at index 0 is skipped and the one at
+# index 3 is found instead.
+program RopeTool
+arg find
+arg abcabc
+arg abc
+arg 1
+status 0
+output
+3

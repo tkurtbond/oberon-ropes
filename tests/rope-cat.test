@@ -1,0 +1,7 @@
+program RopeTool
+arg cat
+arg foo
+arg bar
+status 0
+output
+foobar
