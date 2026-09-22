@@ -30,3 +30,6 @@ repeat S N  Print N concatenated copies of S.
 
 
 insert S POS INS  Print S with INS inserted before index POS.
+
+
+remove S POS LEN  Print S with LEN characters removed starting at POS.

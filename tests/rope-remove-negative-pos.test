@@ -1,0 +1,11 @@
+# -- lets the leading "-" of -5 through as a plain argument instead of
+# being read as an option (see ArgParser's dash-dash-ends-options.test).
+program RopeTool
+arg remove
+arg hello, world
+arg --
+arg -5
+arg 5
+status 0
+output
+, world

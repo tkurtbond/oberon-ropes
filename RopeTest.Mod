@@ -138,6 +138,25 @@ BEGIN
   Check(Rope.Length(Rope.Insert(r, 5, Rope.FromString(","))) = 12, "Insert: resulting length");
 END CheckInsert;
 
+PROCEDURE CheckRemove;
+  VAR r: Rope.Rope;
+BEGIN
+  r := Rope.FromString("hello, world");
+
+  Check(StrEq(Rope.Remove(r, 5, 2), "helloworld"), "Remove from the middle");
+  Check(StrEq(Rope.Remove(r, 0, 7), "world"), "Remove from the start");
+  Check(StrEq(Rope.Remove(r, 5, 100), "hello"), "Remove clamps a too-large len to the end");
+  Check(StrEq(Rope.Remove(r, 100, 5), "hello, world"), "Remove at a too-large pos removes nothing");
+  Check(StrEq(Rope.Remove(r, -5, 5), ", world"), "Remove clamps a negative pos to the start");
+  Check(StrEq(Rope.Remove(r, 5, -2), "hello, world"), "Remove clamps a negative len to 0");
+  Check(Rope.Remove(r, 0, Rope.Length(r)) = NIL, "Remove of the whole rope is NIL");
+
+  Check(Rope.Remove(NIL, 0, 5) = NIL, "Remove from NIL is NIL");
+  Check(StrEq(Rope.Remove(r, 5, 0), "hello, world"), "Remove of length 0 leaves the rope unchanged");
+
+  Check(Rope.Length(Rope.Remove(r, 5, 2)) = 10, "Remove: resulting length");
+END CheckRemove;
+
 PROCEDURE CheckCompareFindRepeat;
   VAR r: Rope.Rope;
 BEGIN
@@ -213,6 +232,7 @@ BEGIN
   CheckCat;
   CheckSubstring;
   CheckInsert;
+  CheckRemove;
   CheckCompareFindRepeat;
   CheckStressAndBalance;
   Summary

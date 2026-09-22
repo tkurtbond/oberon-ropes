@@ -326,6 +326,24 @@ BEGIN
   RETURN Cat(Cat(left, ins), right)
 END Insert;
 
+(* r with the len characters at pos taken out: Substring(r, 0, pos)
+   concatenated with Substring(r, pos + len, Length(r) - pos - len).  pos
+   and len are clamped the same way Substring clamps its own start and
+   len: pos into [0, Length(r)], len into [0, Length(r) - pos], so a
+   negative or over-length pos or len is trimmed to what actually exists
+   rather than trapping. *)
+PROCEDURE Remove*(r: Rope; pos, len: LONGINT): Rope;
+  VAR left, right: Rope;
+BEGIN
+  IF pos < 0 THEN pos := 0 END;
+  IF pos > Length(r) THEN pos := Length(r) END;
+  IF len < 0 THEN len := 0 END;
+  IF pos + len > Length(r) THEN len := Length(r) - pos END;
+  left := Substring(r, 0, pos);
+  right := Substring(r, pos + len, Length(r) - pos - len);
+  RETURN Cat(left, right)
+END Remove;
+
 (* --- Comparison, search, iteration --- *)
 
 (* <0, 0 or >0, like strcmp: lexicographic by character, then by length. *)
