@@ -234,6 +234,20 @@ BEGIN
   Check(Rope.Make(-1, "z") = NIL, "Make of negative length is NIL");
 END CheckFromCharAndMake;
 
+PROCEDURE CheckOverflowGuard;
+  VAR r: Rope.Rope;
+BEGIN
+  (* Exactly at the boundary: (MAX(LONGINT) - 1) + 1 = MAX(LONGINT), which
+     must succeed -- only a combined length that would exceed
+     MAX(LONGINT) should HALT.  This is cheap even at this size: Repeat's
+     binary doubling shares subtrees instead of allocating MAX(LONGINT)
+     real characters.  The over-the-boundary case can't be a Check here
+     -- it HALTs the whole process by design, so it's covered instead by
+     tests/rope-bigcat-overflow.test, which expects exactly that. *)
+  r := Rope.Cat(Rope.Repeat(Rope.FromChar("x"), MAX(LONGINT) - 1), Rope.FromChar("y"));
+  Check(Rope.Length(r) = MAX(LONGINT), "Cat right at the LONGINT boundary succeeds");
+END CheckOverflowGuard;
+
 PROCEDURE ShiftMapper(ch: CHAR): CHAR;
 BEGIN
   RETURN CHR(ORD(ch) + 1)
@@ -445,6 +459,7 @@ BEGIN
   CheckCompareFindRepeat;
   CheckStressAndBalance;
   CheckFromCharAndMake;
+  CheckOverflowGuard;
   CheckMap;
   CheckAsciiCase;
   CheckTrim;

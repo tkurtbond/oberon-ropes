@@ -68,6 +68,9 @@ escaped S  Print S with special and non-printable characters escaped.
 make LEN CH  Print a rope of LEN copies of CH.
 
 
+bigcat N1 CH1 N2 CH2  Print the length of N1 copies of CH1 concatenated with N2 copies of CH2.
+
+
 indexchar S CH FROM  Print the index of CH in S at or after FROM, or -1.
 
 
@@ -75,3 +78,4 @@ rindexchar S CH BEFORE  Print the index of CH in S at or before BEFORE, or -1.
 
 
 contains S CH FROM  Print TRUE or FALSE: whether CH occurs in S at or after FROM.
+

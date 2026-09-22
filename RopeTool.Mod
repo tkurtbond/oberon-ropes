@@ -15,7 +15,7 @@ VAR
   cmpParser, findParser, repeatParser, insertParser, removeParser,
   rfindParser, splitParser, trimParser, trimLeftParser, trimRightParser,
   upperParser, lowerParser, capitalizeParser, uncapitalizeParser, escapedParser,
-  makeParser, indexCharParser, rIndexCharParser, containsParser: ArgParser.Parser;
+  makeParser, bigCatParser, indexCharParser, rIndexCharParser, containsParser: ArgParser.Parser;
 
   catCount: INTEGER; catA: Rope.Rope;
   subCount: INTEGER; subS: Rope.Rope; subStart: LONGINT;
@@ -28,6 +28,7 @@ VAR
   rfindCount: INTEGER; rfindS: Rope.Rope; rfindPattern: ArgParser.String;
   splitCount: INTEGER; splitS: Rope.Rope;
   makeCount: INTEGER; makeLen: LONGINT;
+  bigCatCount: INTEGER; bigCatN1, bigCatN2: LONGINT; bigCatCh1: CHAR;
   indexCharCount: INTEGER; indexCharS: Rope.Rope; indexCharCh: CHAR;
   rIndexCharCount: INTEGER; rIndexCharS: Rope.Rope; rIndexCharCh: CHAR;
   containsCount: INTEGER; containsS: Rope.Rope; containsCh: CHAR;
@@ -280,6 +281,31 @@ BEGIN
   RETURN TRUE
 END MakeArgHandler;
 
+(* --- bigcat N1 CH1 N2 CH2 --- *)
+
+(* Prints the length of N1 copies of CH1 concatenated with N2 copies of
+   CH2, built with Repeat so that even huge N1/N2 stay cheap (Repeat's
+   binary doubling shares subtrees instead of copying characters).  Lets
+   the overflow guard in Rope.Mod's Cat be exercised -- and HALT(1), as
+   designed, instead of silently wrapping -- without actually allocating
+   anywhere near MAX(LONGINT) real characters. *)
+PROCEDURE BigCatArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF bigCatCount = 0 THEN
+    bigCatN1 := ParseInt(arg)
+  ELSIF bigCatCount = 1 THEN
+    bigCatCh1 := arg[0]
+  ELSIF bigCatCount = 2 THEN
+    bigCatN2 := ParseInt(arg)
+  ELSIF bigCatCount = 3 THEN
+    Out.Int(Rope.Length(Rope.Cat(Rope.Repeat(Rope.FromChar(bigCatCh1), bigCatN1),
+                                  Rope.Repeat(Rope.FromChar(arg[0]), bigCatN2))), 0);
+    Out.Ln
+  END;
+  INC(bigCatCount);
+  RETURN TRUE
+END BigCatArgHandler;
+
 (* --- indexchar S CH FROM --- *)
 
 PROCEDURE IndexCharArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
@@ -342,6 +368,7 @@ BEGIN
   rfindCount := 0;
   splitCount := 0;
   makeCount := 0;
+  bigCatCount := 0;
   indexCharCount := 0;
   rIndexCharCount := 0;
   containsCount := 0;
@@ -366,6 +393,7 @@ BEGIN
   uncapitalizeParser := ArgParser.NewParser("uncapitalize S  Print S with its first character lowercased (ASCII only).", UncapitalizeArgHandler);
   escapedParser := ArgParser.NewParser("escaped S  Print S with special and non-printable characters escaped.", EscapedArgHandler);
   makeParser := ArgParser.NewParser("make LEN CH  Print a rope of LEN copies of CH.", MakeArgHandler);
+  bigCatParser := ArgParser.NewParser("bigcat N1 CH1 N2 CH2  Print the length of N1 copies of CH1 concatenated with N2 copies of CH2.", BigCatArgHandler);
   indexCharParser := ArgParser.NewParser("indexchar S CH FROM  Print the index of CH in S at or after FROM, or -1.", IndexCharArgHandler);
   rIndexCharParser := ArgParser.NewParser("rindexchar S CH BEFORE  Print the index of CH in S at or before BEFORE, or -1.", RIndexCharArgHandler);
   containsParser := ArgParser.NewParser("contains S CH FROM  Print TRUE or FALSE: whether CH occurs in S at or after FROM.", ContainsArgHandler);
@@ -392,6 +420,7 @@ BEGIN
   parser.AddCommand(ArgParser.MakeCommand("uncapitalize", uncapitalizeParser));
   parser.AddCommand(ArgParser.MakeCommand("escaped", escapedParser));
   parser.AddCommand(ArgParser.MakeCommand("make", makeParser));
+  parser.AddCommand(ArgParser.MakeCommand("bigcat", bigCatParser));
   parser.AddCommand(ArgParser.MakeCommand("indexchar", indexCharParser));
   parser.AddCommand(ArgParser.MakeCommand("rindexchar", rIndexCharParser));
   parser.AddCommand(ArgParser.MakeCommand("contains", containsParser));

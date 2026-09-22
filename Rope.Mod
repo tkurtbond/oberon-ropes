@@ -119,6 +119,19 @@ BEGIN
   RETURN b
 END MaxInt;
 
+(* a + b, or a HALT if that would overflow LONGINT.  a and b must both be
+   >= 0 (true of every rope length), so overflow is exactly a > MAX(LONGINT)
+   - b; testing it this way, instead of computing a + b and checking the
+   result, never itself overflows.  voc does not trap plain LONGINT
+   overflow -- it silently wraps, like C's int32_t -- so every place a
+   Rope's length is computed from its parts goes through this instead of
+   "+" directly. *)
+PROCEDURE AddLen(a, b: LONGINT): LONGINT;
+BEGIN
+  IF a > MAX(LONGINT) - b THEN HALT(1) END;
+  RETURN a + b
+END AddLen;
+
 (* The length of s up to its terminating 0X, or LEN(s) if it has none. *)
 PROCEDURE StrLen(s: ARRAY OF CHAR): LONGINT;
   VAR len: LONGINT;
@@ -144,7 +157,7 @@ PROCEDURE MergeLeaves(a, b: Leaf): Leaf;
   VAR leaf: Leaf; i, n: LONGINT;
 BEGIN
   NEW(leaf);
-  n := a.length + b.length;
+  n := AddLen(a.length, b.length);
   NEW(leaf.chars, n);
   FOR i := 0 TO a.length - 1 DO leaf.chars[i] := a.chars[i] END;
   FOR i := 0 TO b.length - 1 DO leaf.chars[a.length + i] := b.chars[i] END;
@@ -160,7 +173,7 @@ BEGIN
   NEW(c);
   c.left := left;
   c.right := right;
-  c.length := left.length + right.length;
+  c.length := AddLen(left.length, right.length);
   c.depth := MaxInt(left.depth, right.depth) + 1;
   RETURN c
 END NewConcat;
@@ -174,12 +187,12 @@ PROCEDURE SimpleCat(left, right: Rope): Rope;
 BEGIN
   IF left = NIL THEN RETURN right END;
   IF right = NIL THEN RETURN left END;
-  IF (left IS Leaf) & (right IS Leaf) & (left.length + right.length <= ShortLeafLength) THEN
+  IF (left IS Leaf) & (right IS Leaf) & (AddLen(left.length, right.length) <= ShortLeafLength) THEN
     RETURN MergeLeaves(left(Leaf), right(Leaf))
   END;
   IF (left IS Concat) & (right IS Leaf) THEN
     lc := left(Concat);
-    IF (lc.right IS Leaf) & (lc.right.length + right.length <= ShortLeafLength) THEN
+    IF (lc.right IS Leaf) & (AddLen(lc.right.length, right.length) <= ShortLeafLength) THEN
       RETURN NewConcat(lc.left, MergeLeaves(lc.right(Leaf), right(Leaf)))
     END
   END;

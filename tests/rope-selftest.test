@@ -83,6 +83,7 @@ ok - FromSubstring of length 0 is NIL
 ok - Make: content
 ok - Make of length 0 is NIL
 ok - Make of negative length is NIL
+ok - Cat right at the LONGINT boundary succeeds
 ok - Map shifts every character
 ok - Map of NIL is NIL
 ok - Map preserves tree shape (same Depth)
@@ -141,4 +142,4 @@ ok - Iterator.Peek an arbitrary earlier position
 ok - Iterator.Peek does not change the current position
 ok - Iterator: walking forward matches Fetch at every position
 
-133/133 tests passed.
+134/134 tests passed.
