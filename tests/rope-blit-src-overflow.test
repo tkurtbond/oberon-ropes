@@ -1,0 +1,16 @@
+# SRCSTART = MAX(LONGINT) (2147483647): the same overflow as
+# rope-blit-dst-overflow.test, in Blit's source-side check instead
+# ("srcStart + len > Length(r)", now "len > Length(r) - srcStart") -- but
+# worse: with the old check, nothing trapped at all.  The wrapped sum
+# passed the check, then the copy loop's upper bound (start + len - 1)
+# wrapped negative too, so the loop ran zero times and Blit returned
+# normally, exit status 0, having silently copied nothing.
+program RopeTool
+arg blit
+arg hello
+arg 2147483647
+arg XXXXXXXXXX
+arg 0
+arg 5
+status 1
+output

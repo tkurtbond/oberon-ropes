@@ -1,0 +1,15 @@
+# DSTSTART = MAX(LONGINT) (2147483647): DSTSTART + LEN wraps negative in
+# voc's unchecked LONGINT arithmetic, and so used to slip past Blit's
+# "dstStart + len > LEN(dst)" check -- stopped only by voc's own array
+# index check, with Halt(-2) and exit status 254, not Blit's documented
+# HALT(1).  The check is now "len > LEN(dst) - dstStart", which cannot
+# overflow once dstStart >= 0.
+program RopeTool
+arg blit
+arg hello
+arg 0
+arg XXXXXXXXXX
+arg 2147483647
+arg 5
+status 1
+output

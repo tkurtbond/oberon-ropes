@@ -1,0 +1,11 @@
+# All 5 characters of "hello" don't fit in the 3-character DST: Blit
+# HALTs(1) before copying anything.
+program RopeTool
+arg blit
+arg hello
+arg 0
+arg abc
+arg 0
+arg 5
+status 1
+output

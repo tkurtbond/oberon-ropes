@@ -103,3 +103,6 @@ lines FILE  Read FILE (standard input if FILE is -) and print each line's length
 
 readfile FILE  Read all of FILE, byte for byte, and print its length, a space, and its contents escaped.
 
+
+blit S SRCSTART DST DSTSTART LEN  Print DST with LEN characters of S from SRCSTART copied into it at DSTSTART.
+

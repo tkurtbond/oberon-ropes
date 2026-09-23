@@ -22,7 +22,7 @@ VAR
   upperParser, lowerParser, capitalizeParser, uncapitalizeParser, escapedParser,
   makeParser, bigCatParser, indexCharParser, rIndexCharParser, containsParser,
   overwriteParser, headParser, tailParser, containsPatternParser,
-  iterateParser, iteratorParser, linesParser, readFileParser: ArgParser.Parser;
+  iterateParser, iteratorParser, linesParser, readFileParser, blitParser: ArgParser.Parser;
 
   catCount: INTEGER; catA: Rope.Rope;
   subCount: INTEGER; subS: Rope.Rope; subStart: LONGINT;
@@ -43,6 +43,7 @@ VAR
   headCount: INTEGER; headS: Rope.Rope; headLen: LONGINT;
   tailCount: INTEGER; tailS: Rope.Rope; tailLen: LONGINT;
   containsPatternCount: INTEGER; containsPatternS: Rope.Rope; containsPatternPattern: ArgParser.String;
+  blitCount: INTEGER; blitS: Rope.Rope; blitSrc, blitDstStart: LONGINT; blitDst: POINTER TO ARRAY OF CHAR;
 
 PROCEDURE ParseInt(s: ARRAY OF CHAR): LONGINT;
   VAR val: LONGINT;
@@ -513,6 +514,37 @@ BEGIN
   RETURN TRUE
 END ReadFileArgHandler;
 
+(* --- blit S SRCSTART DST DSTSTART LEN --- *)
+
+(* Demonstrates Rope.Blit, arguments in its own order: copies LEN
+   characters of S from SRCSTART into DST at DSTSTART, then prints DST,
+   so the characters of DST that Blit left alone show too.  DST is
+   copied into an array of exactly its own length (not an
+   ArgParser.String, whose LEN is MaxStringLength + 1 whatever the
+   argument's length), so Blit's LEN(dst) check is against DST itself. *)
+PROCEDURE BlitArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+  VAR i, n: LONGINT;
+BEGIN
+  IF blitCount = 0 THEN
+    blitS := Rope.FromString(arg)
+  ELSIF blitCount = 1 THEN
+    blitSrc := ParseInt(arg)
+  ELSIF blitCount = 2 THEN
+    n := 0;
+    WHILE (n < LEN(arg)) & (arg[n] # 0X) DO INC(n) END;
+    NEW(blitDst, n);
+    FOR i := 0 TO n - 1 DO blitDst[i] := arg[i] END
+  ELSIF blitCount = 3 THEN
+    blitDstStart := ParseInt(arg)
+  ELSIF blitCount = 4 THEN
+    Rope.Blit(blitS, blitSrc, blitDst^, blitDstStart, ParseInt(arg));
+    FOR i := 0 TO LEN(blitDst^) - 1 DO Out.Char(blitDst[i]) END;
+    Out.Ln
+  END;
+  INC(blitCount);
+  RETURN TRUE
+END BlitArgHandler;
+
 BEGIN
   catCount := 0;
   subCount := 0;
@@ -533,6 +565,7 @@ BEGIN
   headCount := 0;
   tailCount := 0;
   containsPatternCount := 0;
+  blitCount := 0;
 
   catParser := ArgParser.NewParser("cat A B  Print the concatenation of A and B.", CatArgHandler);
   subParser := ArgParser.NewParser("sub S START LEN  Print the substring of S from START, LEN characters.", SubArgHandler);
@@ -570,6 +603,8 @@ BEGIN
     ArgParser.NewParser("iterator S  Print each character of S, one per line, via Rope.NewIterator/Get/Incr.", IteratorArgHandler);
   linesParser := ArgParser.NewParser(
     "lines FILE  Read FILE (standard input if FILE is -) and print each line's length, a space, and the line.", LinesArgHandler);
+  blitParser := ArgParser.NewParser(
+    "blit S SRCSTART DST DSTSTART LEN  Print DST with LEN characters of S from SRCSTART copied into it at DSTSTART.", BlitArgHandler);
   readFileParser := ArgParser.NewParser(
     "readfile FILE  Read all of FILE, byte for byte, and print its length, a space, and its contents escaped.", ReadFileArgHandler);
 
@@ -607,6 +642,7 @@ BEGIN
   parser.AddCommand(ArgParser.MakeCommand("iterator", iteratorParser));
   parser.AddCommand(ArgParser.MakeCommand("lines", linesParser));
   parser.AddCommand(ArgParser.MakeCommand("readfile", readFileParser));
+  parser.AddCommand(ArgParser.MakeCommand("blit", blitParser));
 
   parser.ParseArguments(1)
 END RopeTool.

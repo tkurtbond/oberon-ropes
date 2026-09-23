@@ -546,11 +546,17 @@ END BlitHelper;
    dstStart; no 0X terminator is written, unlike ToString.  O(len +
    depth(r)).
    Precondition: 0 <= srcStart, srcStart + len <= Length(r), 0 <= dstStart,
-   dstStart + len <= LEN(dst).  Traps (HALT) if violated. *)
+   dstStart + len <= LEN(dst).  Traps (HALT(1)) if violated -- including
+   when srcStart + len or dstStart + len would overflow LONGINT: the
+   checks are written as len > Length(r) - srcStart and len > LEN(dst) -
+   dstStart, which, once srcStart and dstStart are known to be >= 0, are
+   differences of two non-negative numbers and so cannot overflow, where
+   the sums could silently wrap negative (voc does not trap LONGINT
+   overflow) and slip past the check. *)
 PROCEDURE Blit*(r: Rope; srcStart: LONGINT; VAR dst: ARRAY OF CHAR; dstStart, len: LONGINT);
   VAR d: LONGINT;
 BEGIN
-  IF (srcStart < 0) OR (srcStart + len > Length(r)) OR (dstStart < 0) OR (dstStart + len > LEN(dst)) THEN
+  IF (srcStart < 0) OR (len > Length(r) - srcStart) OR (dstStart < 0) OR (len > LEN(dst) - dstStart) THEN
     HALT(1)
   END;
   IF len > 0 THEN
