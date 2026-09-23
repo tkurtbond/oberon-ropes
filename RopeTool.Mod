@@ -268,7 +268,7 @@ END UncapitalizeArgHandler;
 
 PROCEDURE EscapedArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Rope.Write(Rope.Escaped(Rope.FromString(arg))); Out.Ln;
+  Rope.Write(Rope.Escape(Rope.FromString(arg))); Out.Ln;
   RETURN TRUE
 END EscapedArgHandler;
 
@@ -496,7 +496,7 @@ END LinesArgHandler;
 (* --- readfile FILE --- *)
 
 (* Demonstrates Rope.ReadFile: the whole file, byte for byte.  Printed
-   escaped (Rope.Escaped) so that what makes a byte-exact read different
+   escaped (Rope.Escape) so that what makes a byte-exact read different
    from reading line by line -- a CR, a form feed, a 0X, whether there
    is a final line feed -- shows in the output rather than being lost to
    the terminal or to tests/run-tests.sh's trailing-white-space
@@ -509,7 +509,7 @@ BEGIN
     HALT(1)
   END;
   Out.Int(Rope.Length(r), 0); Out.Char(" ");
-  Rope.Write(Rope.Escaped(r)); Out.Ln;
+  Rope.Write(Rope.Escape(r)); Out.Ln;
   RETURN TRUE
 END ReadFileArgHandler;
 

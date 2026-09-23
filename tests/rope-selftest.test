@@ -123,10 +123,10 @@ ok - Trim
 ok - Trim of all-whitespace is NIL
 ok - Trim of NIL is NIL
 ok - Trim leaves a rope with no padding unchanged
-ok - Escaped: double quote
-ok - Escaped: tab
-ok - Escaped: backslash
-ok - Escaped of NIL is NIL
+ok - Escape: double quote
+ok - Escape: tab
+ok - Escape: backslash
+ok - Escape of NIL is NIL
 ok - IndexChar: first occurrence
 ok - IndexChar: from an offset
 ok - IndexChar: not present
@@ -203,5 +203,9 @@ ok - WriteFile replaces an existing file, not overwrites its start
 ok - WriteFile of NIL makes an empty file; ReadFile of it is TRUE with NIL
 ok - WriteFile/ReadFile: a million-character rope round-trips
 ok - ReadFile of a missing file is FALSE, with NIL
+ok - Blit: every start and length across leaf boundaries copies exactly that range
+ok - Escape: every kind of escape, including \NNN for 0X and 0FFX
+ok - Escape: leaf boundaries in the middle of the input don't change the result
+ok - Escape: a million-character input escapes the same as its pieces
 
-195/195 tests passed.
+199/199 tests passed.

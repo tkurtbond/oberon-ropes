@@ -518,17 +518,45 @@ BEGIN
   RETURN SubstrHelper(r, start, len)
 END Substring;
 
+(* Copies r[start .. start + len - 1] into dst starting at d, advancing d.
+   Precondition: r # NIL, len > 0, 0 <= start, start + len <= r.length.
+   Descends only into the subtrees that overlap the range, and copies
+   straight out of each leaf, so it is O(len + depth), not a Fetch from
+   the root per character. *)
+PROCEDURE BlitHelper(r: Rope; start, len: LONGINT; VAR dst: ARRAY OF CHAR; VAR d: LONGINT);
+  VAR c: Concat; leaf: Leaf; i, n: LONGINT;
+BEGIN
+  IF r IS Leaf THEN
+    leaf := r(Leaf);
+    FOR i := start TO start + len - 1 DO dst[d] := leaf.chars[i]; INC(d) END
+  ELSE
+    c := r(Concat);
+    IF start < c.left.length THEN
+      n := c.left.length - start;
+      IF n > len THEN n := len END;
+      BlitHelper(c.left, start, n, dst, d);
+      DEC(len, n);
+      start := c.left.length
+    END;
+    IF len > 0 THEN BlitHelper(c.right, start - c.left.length, len, dst, d) END
+  END
+END BlitHelper;
+
 (* Copies len characters of r starting at srcStart into dst starting at
-   dstStart; no 0X terminator is written, unlike ToString.
+   dstStart; no 0X terminator is written, unlike ToString.  O(len +
+   depth(r)).
    Precondition: 0 <= srcStart, srcStart + len <= Length(r), 0 <= dstStart,
    dstStart + len <= LEN(dst).  Traps (HALT) if violated. *)
 PROCEDURE Blit*(r: Rope; srcStart: LONGINT; VAR dst: ARRAY OF CHAR; dstStart, len: LONGINT);
-  VAR i: LONGINT;
+  VAR d: LONGINT;
 BEGIN
   IF (srcStart < 0) OR (srcStart + len > Length(r)) OR (dstStart < 0) OR (dstStart + len > LEN(dst)) THEN
     HALT(1)
   END;
-  FOR i := 0 TO len - 1 DO dst[dstStart + i] := Fetch(r, srcStart + i) END
+  IF len > 0 THEN
+    d := dstStart;
+    BlitHelper(r, srcStart, len, dst, d)
+  END
 END Blit;
 
 (* r with ins spliced in before index pos: Substring(r, 0, pos) followed by
@@ -1157,44 +1185,73 @@ END Trim;
 
 (* --- Escaping --- *)
 
-PROCEDURE EscapeChar(ch: CHAR; acc: Rope): Rope;
-  VAR buf: ARRAY 5 OF CHAR; v: INTEGER;
+(* Appends buf[0 .. n-1] to acc as one leaf and resets n to 0; nothing if
+   n = 0.  Shared by Escape and ReadLine/ReadLineRider, which all build a
+   rope a buffer's worth at a time. *)
+PROCEDURE FlushChunk(VAR acc: Rope; VAR buf: ARRAY OF CHAR; VAR n: LONGINT);
 BEGIN
-  IF ch = "\" THEN
-    RETURN Cat(acc, FromString("\\"))
-  ELSIF ch = '"' THEN
-    RETURN Cat(acc, FromString('\"'))
-  ELSIF ch = 0AX THEN
-    RETURN Cat(acc, FromString("\n"))
-  ELSIF ch = 09X THEN
-    RETURN Cat(acc, FromString("\t"))
-  ELSIF ch = 0DX THEN
-    RETURN Cat(acc, FromString("\r"))
+  IF n > 0 THEN acc := Cat(acc, NewLeaf(buf, 0, n)); n := 0 END
+END FlushChunk;
+
+(* Appends ch's escaped form (see Escape) to buf at n, advancing n.  At
+   most 4 characters, so there must be room for that many. *)
+PROCEDURE PutEscaped(ch: CHAR; VAR buf: ARRAY OF CHAR; VAR n: LONGINT);
+  VAR v: INTEGER;
+BEGIN
+  IF (ch = "\") OR (ch = '"') OR (ch = 0AX) OR (ch = 09X) OR (ch = 0DX) THEN
+    buf[n] := "\"; INC(n);
+    IF ch = 0AX THEN buf[n] := "n"
+    ELSIF ch = 09X THEN buf[n] := "t"
+    ELSIF ch = 0DX THEN buf[n] := "r"
+    ELSE buf[n] := ch
+    END;
+    INC(n)
   ELSIF (ORD(ch) < 32) OR (ORD(ch) >= 127) THEN
     v := ORD(ch);
-    buf[0] := "\";
-    buf[1] := CHR(ORD("0") + v DIV 100);
-    buf[2] := CHR(ORD("0") + (v DIV 10) MOD 10);
-    buf[3] := CHR(ORD("0") + v MOD 10);
-    buf[4] := 0X;
-    RETURN Cat(acc, FromString(buf))
+    buf[n] := "\";
+    buf[n + 1] := CHR(ORD("0") + v DIV 100);
+    buf[n + 2] := CHR(ORD("0") + (v DIV 10) MOD 10);
+    buf[n + 3] := CHR(ORD("0") + v MOD 10);
+    INC(n, 4)
   ELSE
-    RETURN AppendChar(acc, ch)
+    buf[n] := ch; INC(n)
   END
-END EscapeChar;
+END PutEscaped;
+
+PROCEDURE EscapeHelper(r: Rope; VAR acc: Rope; VAR buf: ARRAY OF CHAR; VAR n: LONGINT);
+  VAR c: Concat; leaf: Leaf; i: LONGINT;
+BEGIN
+  IF r = NIL THEN RETURN END;
+  IF r IS Leaf THEN
+    leaf := r(Leaf);
+    FOR i := 0 TO leaf.length - 1 DO
+      IF n > LEN(buf) - 4 THEN FlushChunk(acc, buf, n) END;
+      PutEscaped(leaf.chars[i], buf, n)
+    END
+  ELSE
+    c := r(Concat);
+    EscapeHelper(c.left, acc, buf, n);
+    EscapeHelper(c.right, acc, buf, n)
+  END
+END EscapeHelper;
 
 (* r with backslash, double quote, newline, tab and carriage return
    replaced by their two-character backslash escapes, and any other
    non-printable character (ORD(ch) < 32 or >= 127) replaced by a
-   backslash followed by its three-digit decimal code. *)
-PROCEDURE Escaped*(r: Rope): Rope;
-  VAR result: Rope; i, len: LONGINT;
+   backslash followed by its three-digit decimal code.  Linear: walks
+   r's leaves directly and builds the result a buffer's worth
+   (FileChunk characters) at a time, instead of a Fetch from the root and
+   a Cat per character.  Named Escaped until the Ada Ropes port's
+   Escape was ported back: a verb, like every other operation here. *)
+PROCEDURE Escape*(r: Rope): Rope;
+  VAR acc: Rope; buf: ARRAY FileChunk OF CHAR; n: LONGINT;
 BEGIN
-  result := NIL;
-  len := Length(r);
-  FOR i := 0 TO len - 1 DO result := EscapeChar(Fetch(r, i), result) END;
-  RETURN result
-END Escaped;
+  acc := NIL;
+  n := 0;
+  EscapeHelper(r, acc, buf, n);
+  FlushChunk(acc, buf, n);
+  RETURN acc
+END Escape;
 
 (* --- Input and output --- *)
 
@@ -1247,12 +1304,6 @@ PROCEDURE WriteRider*(VAR w: Files.Rider; r: Rope);
 BEGIN
   WriteRiderHelper(w, r)
 END WriteRider;
-
-(* Appends buf[0 .. n-1] to line and resets n to 0; nothing if n = 0. *)
-PROCEDURE FlushChunk(VAR line: Rope; VAR buf: ARRAY OF CHAR; VAR n: LONGINT);
-BEGIN
-  IF n > 0 THEN line := Cat(line, NewLeaf(buf, 0, n)); n := 0 END
-END FlushChunk;
 
 (* Reads the next line of standard input, through In, into line, without
    its line feed (a carriage return before it is kept, as on any

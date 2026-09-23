@@ -344,18 +344,18 @@ BEGIN
         "Trim leaves a rope with no padding unchanged");
 END CheckTrim;
 
-PROCEDURE CheckEscaped;
+PROCEDURE CheckEscape;
   VAR r: Rope.Rope; buf: ARRAY 3 OF CHAR;
 BEGIN
-  Check(StrEq(Rope.Escaped(Rope.FromString('say "hi"')), 'say \"hi\"'), "Escaped: double quote");
+  Check(StrEq(Rope.Escape(Rope.FromString('say "hi"')), 'say \"hi\"'), "Escape: double quote");
 
   buf[0] := "a"; buf[1] := 9X; buf[2] := 0X;
   r := Rope.FromString(buf);
-  Check(StrEq(Rope.Escaped(r), "a\t"), "Escaped: tab");
+  Check(StrEq(Rope.Escape(r), "a\t"), "Escape: tab");
 
-  Check(StrEq(Rope.Escaped(Rope.FromString("\")), "\\"), "Escaped: backslash");
-  Check(Rope.Escaped(NIL) = NIL, "Escaped of NIL is NIL");
-END CheckEscaped;
+  Check(StrEq(Rope.Escape(Rope.FromString("\")), "\\"), "Escape: backslash");
+  Check(Rope.Escape(NIL) = NIL, "Escape of NIL is NIL");
+END CheckEscape;
 
 PROCEDURE CheckIndexCharAndRFind;
   VAR r: Rope.Rope;
@@ -810,6 +810,55 @@ BEGIN
   Check(~Rope.ReadFile(name, r) & (r = NIL), "ReadFile of a missing file is FALSE, with NIL")
 END CheckReadWriteFile;
 
+(* --- Blit and Escape across leaves --- *)
+
+PROCEDURE CheckBlitAcrossLeaves;
+  VAR base: ARRAY 201 OF CHAR; dst: ARRAY 204 OF CHAR; r: Rope.Rope; start, len, k: LONGINT; ok: BOOLEAN;
+BEGIN
+  FOR k := 0 TO 199 DO base[k] := CHR(ORD("a") + (k + 1) MOD 26) END;
+  base[200] := 0X;
+  r := Chunked(base, 200, 17);
+  (* Every start and every length: a range starting and ending inside, at,
+     and just past every leaf boundary.  dst[0] and the character just
+     after the copied range are sentinels, so copying one too many or too
+     few characters is caught as well as copying the wrong ones. *)
+  ok := TRUE;
+  FOR start := 0 TO 200 DO
+    FOR len := 0 TO 200 - start DO
+      FOR k := 0 TO LEN(dst) - 1 DO dst[k] := "#" END;
+      Rope.Blit(r, start, dst, 1, len);
+      ok := ok & (dst[0] = "#") & (dst[1 + len] = "#");
+      FOR k := 0 TO len - 1 DO ok := ok & (dst[1 + k] = base[start + k]) END
+    END
+  END;
+  Check(ok, "Blit: every start and length across leaf boundaries copies exactly that range")
+END CheckBlitAcrossLeaves;
+
+PROCEDURE CheckEscapeAcrossLeaves;
+  CONST pieceLen = 10;
+  VAR piece: ARRAY pieceLen OF CHAR; flat: ARRAY 50 * pieceLen + 1 OF CHAR; p, e: Rope.Rope; k: LONGINT;
+BEGIN
+  (* One of each kind of escape, plus two plain characters. *)
+  piece[0] := "a"; piece[1] := "\"; piece[2] := '"'; piece[3] := 0AX; piece[4] := 09X;
+  piece[5] := 0DX; piece[6] := 0X; piece[7] := 0FFX; piece[8] := 01X; piece[9] := "z";
+  p := Rope.FromSubstring(piece, 0, pieceLen);
+  Check(StrEq(Rope.Escape(p), 'a\\\"\n\t\r\000\255\001z'), "Escape: every kind of escape, including \NNN for 0X and 0FFX");
+
+  (* Escaping is per character, so escaping n copies of piece must give n
+     copies of its escape -- whatever the leaf boundaries.  Chunked by 17
+     puts them in the middle of pieces, and escapes, too. *)
+  FOR k := 0 TO 50 * pieceLen - 1 DO flat[k] := piece[k MOD pieceLen] END;
+  flat[50 * pieceLen] := 0X;
+  Check(Rope.Equal(Rope.Escape(Chunked(flat, 50 * pieceLen, 17)), Rope.Repeat(Rope.Escape(p), 50)),
+        "Escape: leaf boundaries in the middle of the input don't change the result");
+
+  (* Far more output than Escape's 4096-character buffer, so it is
+     flushed many times, with escapes landing across those flushes too. *)
+  e := Rope.Escape(Rope.Repeat(p, 100000));
+  Check((Rope.Length(e) = 100000 * Rope.Length(Rope.Escape(p))) & Rope.Equal(e, Rope.Repeat(Rope.Escape(p), 100000)),
+        "Escape: a million-character input escapes the same as its pieces")
+END CheckEscapeAcrossLeaves;
+
 PROCEDURE Summary;
 BEGIN
   Out.Ln;
@@ -836,7 +885,7 @@ BEGIN
   CheckMap;
   CheckAsciiCase;
   CheckTrim;
-  CheckEscaped;
+  CheckEscape;
   CheckIndexCharAndRFind;
   CheckContainsPattern;
   CheckBlit;
@@ -848,5 +897,7 @@ BEGIN
   CheckWriteReadRider;
   CheckReadAll;
   CheckReadWriteFile;
+  CheckBlitAcrossLeaves;
+  CheckEscapeAcrossLeaves;
   Summary
 END RopeTest.
