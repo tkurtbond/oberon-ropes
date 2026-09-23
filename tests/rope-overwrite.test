@@ -1,0 +1,8 @@
+program RopeTool
+arg overwrite
+arg hello world
+arg 6
+arg there
+status 0
+output
+hello there

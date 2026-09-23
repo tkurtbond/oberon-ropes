@@ -521,6 +521,30 @@ BEGIN
   RETURN Cat(left, right)
 END Remove;
 
+(* r with the characters from pos onward replaced by new, extending r if
+   new runs past its current end: Substring(r, 0, pos) followed by new
+   followed by Substring(r, pos + Length(new), Length(r) - pos -
+   Length(new)).  pos is clamped into [0, Length(r)], the same
+   convention Insert/Remove above already use for their own position
+   arguments, rather than trapping on an out-of-range pos.  Ported back
+   from the Ada Ropes package (Ropes.Overwrite, modeled there on
+   Ada.Strings.Unbounded.Overwrite) -- a genuine extension beyond this
+   module's own original scope, added because the Ada port found it a
+   plausible-enough addition to make anyway; the clamp-not-trap
+   convention here keeps it consistent with every other position-taking
+   operation already in this file, rather than copying Ada's
+   exception-on-out-of-range behavior verbatim. *)
+PROCEDURE Overwrite*(r: Rope; pos: LONGINT; new: Rope): Rope;
+  VAR left, right: Rope; tailStart: LONGINT;
+BEGIN
+  IF pos < 0 THEN pos := 0 END;
+  IF pos > Length(r) THEN pos := Length(r) END;
+  left := Substring(r, 0, pos);
+  tailStart := pos + Length(new);
+  right := Substring(r, tailStart, Length(r) - tailStart);
+  RETURN Cat(Cat(left, new), right)
+END Overwrite;
+
 (* --- Search char --- *)
 
 (* The index of the first occurrence of ch at or after from, or -1. *)
@@ -639,6 +663,19 @@ BEGIN
   END;
   RETURN -1
 END RFind;
+
+(* Whether pattern occurs in r at or after from -- a thin wrapper over
+   Find, the same relationship Contains above already has to IndexChar,
+   just for a string/rope pattern instead of one character.  Ported back
+   from the Ada Ropes package (Ropes.Contains's Rope-pattern overloads),
+   which paired a pattern-based Contains with the char-based one this
+   module already had; named ContainsPattern rather than reusing
+   Contains, since Oberon-2 has no overloading to distinguish the two by
+   parameter type alone. *)
+PROCEDURE ContainsPattern*(r: Rope; pattern: ARRAY OF CHAR; from: LONGINT): BOOLEAN;
+BEGIN
+  RETURN Find(r, pattern, from) >= 0
+END ContainsPattern;
 
 (* Returns FALSE if visit asked to stop partway through. *)
 PROCEDURE IterateHelper(r: Rope; visit: Visitor): BOOLEAN;
@@ -855,6 +892,30 @@ PROCEDURE Make*(len: LONGINT; ch: CHAR): Rope;
 BEGIN
   RETURN Repeat(FromChar(ch), len)
 END Make;
+
+(* --- Head / Tail --- *)
+
+(* The first count characters of r, padded on the right with pad if
+   count exceeds Length(r).  NIL if count <= 0 -- the same "NIL means
+   empty" convention Make above uses for its own len <= 0 case.  Ported
+   back from the Ada Ropes package (Ropes.Head, itself modeled there on
+   Ada.Strings.Unbounded.Head) -- a genuine extension beyond this
+   module's own original scope. *)
+PROCEDURE Head*(r: Rope; count: LONGINT; pad: CHAR): Rope;
+BEGIN
+  IF count <= 0 THEN RETURN NIL END;
+  IF count <= Length(r) THEN RETURN Substring(r, 0, count) END;
+  RETURN Cat(r, Make(count - Length(r), pad))
+END Head;
+
+(* The last count characters of r, padded on the left with pad if count
+   exceeds Length(r).  NIL if count <= 0.  Ropes.Tail's counterpart. *)
+PROCEDURE Tail*(r: Rope; count: LONGINT; pad: CHAR): Rope;
+BEGIN
+  IF count <= 0 THEN RETURN NIL END;
+  IF count <= Length(r) THEN RETURN Substring(r, Length(r) - count, count) END;
+  RETURN Cat(Make(count - Length(r), pad), r)
+END Tail;
 
 (* --- Map --- *)
 

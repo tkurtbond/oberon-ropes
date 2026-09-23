@@ -159,6 +159,26 @@ BEGIN
   Check(Rope.Length(Rope.Remove(r, 5, 2)) = 10, "Remove: resulting length");
 END CheckRemove;
 
+PROCEDURE CheckOverwrite;
+  VAR r: Rope.Rope;
+BEGIN
+  r := Rope.FromString("hello world");
+
+  Check(StrEq(Rope.Overwrite(r, 6, Rope.FromString("there")), "hello there"), "Overwrite replaces characters in the middle");
+  Check(StrEq(Rope.Overwrite(r, 0, Rope.FromString("HELLO")), "HELLO world"), "Overwrite at the start");
+  Check(StrEq(Rope.Overwrite(r, 11, Rope.FromString("!")), "hello world!"), "Overwrite past the end appends");
+  Check(StrEq(Rope.Overwrite(r, 6, Rope.FromString("there, universe")), "hello there, universe"),
+        "Overwrite extends past the original end");
+  Check(StrEq(Rope.Overwrite(r, 100, Rope.FromString("!")), "hello world!"), "Overwrite clamps a too-large pos to the end");
+  Check(StrEq(Rope.Overwrite(r, -5, Rope.FromString(">> ")), ">> lo world"), "Overwrite clamps a negative pos to the start");
+
+  Check(StrEq(Rope.Overwrite(NIL, 0, Rope.FromString("x")), "x"), "Overwrite into NIL is just the new rope");
+  Check(StrEq(Rope.Overwrite(r, 5, NIL), "hello world"), "Overwrite of NIL leaves the rope unchanged");
+  Check(Rope.Overwrite(NIL, 0, NIL) = NIL, "Overwrite of NIL into NIL is NIL");
+
+  Check(Rope.Length(Rope.Overwrite(r, 6, Rope.FromString("there"))) = 11, "Overwrite: resulting length");
+END CheckOverwrite;
+
 PROCEDURE CheckCompareFindRepeat;
   VAR r: Rope.Rope;
 BEGIN
@@ -233,6 +253,26 @@ BEGIN
   Check(Rope.Make(0, "z") = NIL, "Make of length 0 is NIL");
   Check(Rope.Make(-1, "z") = NIL, "Make of negative length is NIL");
 END CheckFromCharAndMake;
+
+PROCEDURE CheckHeadTail;
+  VAR r: Rope.Rope;
+BEGIN
+  r := Rope.FromString("hello");
+
+  Check(StrEq(Rope.Head(r, 3, " "), "hel"), "Head takes the first COUNT characters");
+  Check(StrEq(Rope.Head(r, 5, " "), "hello"), "Head of exactly Length(r) characters is r itself");
+  Check(StrEq(Rope.Head(r, 8, "."), "hello..."), "Head pads on the right when COUNT exceeds Length(r)");
+  Check(Rope.Head(r, 0, " ") = NIL, "Head of 0 characters is NIL");
+  Check(Rope.Head(r, -1, " ") = NIL, "Head of a negative COUNT is NIL");
+  Check(StrEq(Rope.Head(NIL, 3, "x"), "xxx"), "Head of NIL is COUNT copies of pad");
+
+  Check(StrEq(Rope.Tail(r, 3, " "), "llo"), "Tail takes the last COUNT characters");
+  Check(StrEq(Rope.Tail(r, 5, " "), "hello"), "Tail of exactly Length(r) characters is r itself");
+  Check(StrEq(Rope.Tail(r, 8, "."), "...hello"), "Tail pads on the left when COUNT exceeds Length(r)");
+  Check(Rope.Tail(r, 0, " ") = NIL, "Tail of 0 characters is NIL");
+  Check(Rope.Tail(r, -1, " ") = NIL, "Tail of a negative COUNT is NIL");
+  Check(StrEq(Rope.Tail(NIL, 3, "x"), "xxx"), "Tail of NIL is COUNT copies of pad");
+END CheckHeadTail;
 
 PROCEDURE CheckOverflowGuard;
   VAR r: Rope.Rope;
@@ -331,6 +371,21 @@ BEGIN
   Check(Rope.RFind(r, "xyz", Rope.Length(r)) = -1, "RFind: not present");
   Check(Rope.RFind(r, "", Rope.Length(r)) = Rope.Length(r), "RFind: empty pattern matches at the bound");
 END CheckIndexCharAndRFind;
+
+PROCEDURE CheckContainsPattern;
+  VAR r: Rope.Rope;
+BEGIN
+  r := Rope.FromString("hello world");
+
+  Check(Rope.ContainsPattern(r, "world", 0), "ContainsPattern: present");
+  Check(~Rope.ContainsPattern(r, "xyz", 0), "ContainsPattern: not present");
+  Check(Rope.ContainsPattern(r, "hello", 0), "ContainsPattern: present at the very start");
+  Check(Rope.ContainsPattern(r, "o", 5), "ContainsPattern: from an offset, still present");
+  Check(~Rope.ContainsPattern(r, "hello", 5), "ContainsPattern: from an offset excludes an earlier occurrence");
+  Check(Rope.ContainsPattern(r, "", 0), "ContainsPattern: the empty pattern always matches");
+  Check(~Rope.ContainsPattern(NIL, "x", 0), "ContainsPattern: not present in NIL (non-empty pattern)");
+  Check(Rope.ContainsPattern(NIL, "", 0), "ContainsPattern: the empty pattern matches even in NIL");
+END CheckContainsPattern;
 
 PROCEDURE CheckBlit;
   VAR r: Rope.Rope; buf: ARRAY 11 OF CHAR;
@@ -456,15 +511,18 @@ BEGIN
   CheckSubstring;
   CheckInsert;
   CheckRemove;
+  CheckOverwrite;
   CheckCompareFindRepeat;
   CheckStressAndBalance;
   CheckFromCharAndMake;
+  CheckHeadTail;
   CheckOverflowGuard;
   CheckMap;
   CheckAsciiCase;
   CheckTrim;
   CheckEscaped;
   CheckIndexCharAndRFind;
+  CheckContainsPattern;
   CheckBlit;
   CheckSplit;
   CheckIterator;

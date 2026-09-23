@@ -15,7 +15,8 @@ VAR
   cmpParser, findParser, repeatParser, insertParser, removeParser,
   rfindParser, splitParser, trimParser, trimLeftParser, trimRightParser,
   upperParser, lowerParser, capitalizeParser, uncapitalizeParser, escapedParser,
-  makeParser, bigCatParser, indexCharParser, rIndexCharParser, containsParser: ArgParser.Parser;
+  makeParser, bigCatParser, indexCharParser, rIndexCharParser, containsParser,
+  overwriteParser, headParser, tailParser, containsPatternParser: ArgParser.Parser;
 
   catCount: INTEGER; catA: Rope.Rope;
   subCount: INTEGER; subS: Rope.Rope; subStart: LONGINT;
@@ -32,6 +33,10 @@ VAR
   indexCharCount: INTEGER; indexCharS: Rope.Rope; indexCharCh: CHAR;
   rIndexCharCount: INTEGER; rIndexCharS: Rope.Rope; rIndexCharCh: CHAR;
   containsCount: INTEGER; containsS: Rope.Rope; containsCh: CHAR;
+  overwriteCount: INTEGER; overwriteS: Rope.Rope; overwritePos: LONGINT;
+  headCount: INTEGER; headS: Rope.Rope; headLen: LONGINT;
+  tailCount: INTEGER; tailS: Rope.Rope; tailLen: LONGINT;
+  containsPatternCount: INTEGER; containsPatternS: Rope.Rope; containsPatternPattern: ArgParser.String;
 
 PROCEDURE PrintRope(r: Rope.Rope);
   VAR buf: ARRAY ArgParser.MaxStringLength + 1 OF CHAR;
@@ -356,6 +361,71 @@ BEGIN
   RETURN TRUE
 END ContainsArgHandler;
 
+(* --- overwrite S POS NEW --- *)
+
+PROCEDURE OverwriteArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF overwriteCount = 0 THEN
+    overwriteS := Rope.FromString(arg)
+  ELSIF overwriteCount = 1 THEN
+    overwritePos := ParseInt(arg)
+  ELSIF overwriteCount = 2 THEN
+    PrintRope(Rope.Overwrite(overwriteS, overwritePos, Rope.FromString(arg))); Out.Ln
+  END;
+  INC(overwriteCount);
+  RETURN TRUE
+END OverwriteArgHandler;
+
+(* --- head S COUNT PAD --- *)
+
+PROCEDURE HeadArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF headCount = 0 THEN
+    headS := Rope.FromString(arg)
+  ELSIF headCount = 1 THEN
+    headLen := ParseInt(arg)
+  ELSIF headCount = 2 THEN
+    PrintRope(Rope.Head(headS, headLen, arg[0])); Out.Ln
+  END;
+  INC(headCount);
+  RETURN TRUE
+END HeadArgHandler;
+
+(* --- tail S COUNT PAD --- *)
+
+PROCEDURE TailArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF tailCount = 0 THEN
+    tailS := Rope.FromString(arg)
+  ELSIF tailCount = 1 THEN
+    tailLen := ParseInt(arg)
+  ELSIF tailCount = 2 THEN
+    PrintRope(Rope.Tail(tailS, tailLen, arg[0])); Out.Ln
+  END;
+  INC(tailCount);
+  RETURN TRUE
+END TailArgHandler;
+
+(* --- containspattern S PATTERN FROM --- *)
+
+PROCEDURE ContainsPatternArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF containsPatternCount = 0 THEN
+    containsPatternS := Rope.FromString(arg)
+  ELSIF containsPatternCount = 1 THEN
+    COPY(arg, containsPatternPattern)
+  ELSIF containsPatternCount = 2 THEN
+    IF Rope.ContainsPattern(containsPatternS, containsPatternPattern, ParseInt(arg)) THEN
+      Out.String("TRUE")
+    ELSE
+      Out.String("FALSE")
+    END;
+    Out.Ln
+  END;
+  INC(containsPatternCount);
+  RETURN TRUE
+END ContainsPatternArgHandler;
+
 BEGIN
   catCount := 0;
   subCount := 0;
@@ -372,6 +442,10 @@ BEGIN
   indexCharCount := 0;
   rIndexCharCount := 0;
   containsCount := 0;
+  overwriteCount := 0;
+  headCount := 0;
+  tailCount := 0;
+  containsPatternCount := 0;
 
   catParser := ArgParser.NewParser("cat A B  Print the concatenation of A and B.", CatArgHandler);
   subParser := ArgParser.NewParser("sub S START LEN  Print the substring of S from START, LEN characters.", SubArgHandler);
@@ -397,6 +471,13 @@ BEGIN
   indexCharParser := ArgParser.NewParser("indexchar S CH FROM  Print the index of CH in S at or after FROM, or -1.", IndexCharArgHandler);
   rIndexCharParser := ArgParser.NewParser("rindexchar S CH BEFORE  Print the index of CH in S at or before BEFORE, or -1.", RIndexCharArgHandler);
   containsParser := ArgParser.NewParser("contains S CH FROM  Print TRUE or FALSE: whether CH occurs in S at or after FROM.", ContainsArgHandler);
+  overwriteParser := ArgParser.NewParser("overwrite S POS NEW  Print S with the characters from POS replaced by NEW.", OverwriteArgHandler);
+  headParser :=
+    ArgParser.NewParser("head S COUNT PAD  Print the first COUNT characters of S, padded with PAD if COUNT exceeds Length(S).", HeadArgHandler);
+  tailParser :=
+    ArgParser.NewParser("tail S COUNT PAD  Print the last COUNT characters of S, padded with PAD if COUNT exceeds Length(S).", TailArgHandler);
+  containsPatternParser := ArgParser.NewParser(
+    "containspattern S PATTERN FROM  Print TRUE or FALSE: whether PATTERN occurs in S at or after FROM.", ContainsPatternArgHandler);
 
   parser := ArgParser.NewParser("ropetool [options] command arguments...", TopArgHandler);
   parser.AddOption(ArgParser.MakeOption("h", "help", "Display help message and exit.", DoHelp));
@@ -424,6 +505,10 @@ BEGIN
   parser.AddCommand(ArgParser.MakeCommand("indexchar", indexCharParser));
   parser.AddCommand(ArgParser.MakeCommand("rindexchar", rIndexCharParser));
   parser.AddCommand(ArgParser.MakeCommand("contains", containsParser));
+  parser.AddCommand(ArgParser.MakeCommand("overwrite", overwriteParser));
+  parser.AddCommand(ArgParser.MakeCommand("head", headParser));
+  parser.AddCommand(ArgParser.MakeCommand("tail", tailParser));
+  parser.AddCommand(ArgParser.MakeCommand("containspattern", containsPatternParser));
 
   parser.ParseArguments(1)
 END RopeTool.

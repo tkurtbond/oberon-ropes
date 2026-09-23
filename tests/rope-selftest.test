@@ -1,9 +1,10 @@
 # RopeTest's full internal check suite; status 0 and every check "ok"
 # confirms Rope.Mod's construction, Cat (incl. the short-leaf merge and
-# absorb cases), Substring, Insert, Remove, Compare/Find/Repeat, the
-# auto-rebalance / explicit Balance machinery, and the newer additions
-# (Map/Mapi, ASCII case, Trim, Escaped, char search, RFind, Blit, Split,
-# and the Iterator) all still behave as designed.
+# absorb cases), Substring, Insert, Remove, Overwrite, Compare/Find/
+# Repeat, the auto-rebalance / explicit Balance machinery, Head/Tail,
+# and the newer additions (Map/Mapi, ASCII case, Trim, Escaped, char
+# search, ContainsPattern, RFind, Blit, Split, and the Iterator) all
+# still behave as designed.
 program RopeTest
 status 0
 output
@@ -53,6 +54,16 @@ ok - Remove of the whole rope is NIL
 ok - Remove from NIL is NIL
 ok - Remove of length 0 leaves the rope unchanged
 ok - Remove: resulting length
+ok - Overwrite replaces characters in the middle
+ok - Overwrite at the start
+ok - Overwrite past the end appends
+ok - Overwrite extends past the original end
+ok - Overwrite clamps a too-large pos to the end
+ok - Overwrite clamps a negative pos to the start
+ok - Overwrite into NIL is just the new rope
+ok - Overwrite of NIL leaves the rope unchanged
+ok - Overwrite of NIL into NIL is NIL
+ok - Overwrite: resulting length
 ok - Compare equal ropes
 ok - Compare less-than
 ok - Compare greater-than
@@ -83,6 +94,18 @@ ok - FromSubstring of length 0 is NIL
 ok - Make: content
 ok - Make of length 0 is NIL
 ok - Make of negative length is NIL
+ok - Head takes the first COUNT characters
+ok - Head of exactly Length(r) characters is r itself
+ok - Head pads on the right when COUNT exceeds Length(r)
+ok - Head of 0 characters is NIL
+ok - Head of a negative COUNT is NIL
+ok - Head of NIL is COUNT copies of pad
+ok - Tail takes the last COUNT characters
+ok - Tail of exactly Length(r) characters is r itself
+ok - Tail pads on the left when COUNT exceeds Length(r)
+ok - Tail of 0 characters is NIL
+ok - Tail of a negative COUNT is NIL
+ok - Tail of NIL is COUNT copies of pad
 ok - Cat right at the LONGINT boundary succeeds
 ok - Map shifts every character
 ok - Map of NIL is NIL
@@ -116,6 +139,14 @@ ok - RFind: last occurrence searching the whole rope
 ok - RFind: a bound excludes a later occurrence
 ok - RFind: not present
 ok - RFind: empty pattern matches at the bound
+ok - ContainsPattern: present
+ok - ContainsPattern: not present
+ok - ContainsPattern: present at the very start
+ok - ContainsPattern: from an offset, still present
+ok - ContainsPattern: from an offset excludes an earlier occurrence
+ok - ContainsPattern: the empty pattern always matches
+ok - ContainsPattern: not present in NIL (non-empty pattern)
+ok - ContainsPattern: the empty pattern matches even in NIL
 ok - Blit copies into the middle of dst without touching the rest
 ok - Split: visits every piece, including an empty one
 ok - Split: piece contents in order
@@ -142,4 +173,4 @@ ok - Iterator.Peek an arbitrary earlier position
 ok - Iterator.Peek does not change the current position
 ok - Iterator: walking forward matches Fetch at every position
 
-134/134 tests passed.
+164/164 tests passed.

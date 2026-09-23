@@ -79,3 +79,15 @@ rindexchar S CH BEFORE  Print the index of CH in S at or before BEFORE, or -1.
 
 contains S CH FROM  Print TRUE or FALSE: whether CH occurs in S at or after FROM.
 
+
+overwrite S POS NEW  Print S with the characters from POS replaced by NEW.
+
+
+head S COUNT PAD  Print the first COUNT characters of S, padded with PAD if COUNT exceeds Length(S).
+
+
+tail S COUNT PAD  Print the last COUNT characters of S, padded with PAD if COUNT exceeds Length(S).
+
+
+containspattern S PATTERN FROM  Print TRUE or FALSE: whether PATTERN occurs in S at or after FROM.
+
