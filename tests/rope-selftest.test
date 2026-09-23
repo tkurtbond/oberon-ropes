@@ -194,5 +194,14 @@ ok - ReadLineRider: an unterminated last line of exactly 4096 characters
 ok - ReadLineRider: FALSE after an unterminated last line
 ok - WriteRider/ReadLineRider: a 0X inside a line round-trips
 ok - WriteRider/ReadLineRider: a million-character rope round-trips
+ok - ReadAll: CR, form feed, 0X, and no final line feed survive, byte for byte
+ok - ReadAll at end of file is NIL
+ok - ReadAll: reads from the rider's position to the end
+ok - ReadAll: files of 1, 4095..4097, 8192, 8193, 100000 bytes each read back exactly
+ok - WriteFile/ReadFile: all 256 byte values survive a round trip
+ok - WriteFile replaces an existing file, not overwrites its start
+ok - WriteFile of NIL makes an empty file; ReadFile of it is TRUE with NIL
+ok - WriteFile/ReadFile: a million-character rope round-trips
+ok - ReadFile of a missing file is FALSE, with NIL
 
-186/186 tests passed.
+195/195 tests passed.

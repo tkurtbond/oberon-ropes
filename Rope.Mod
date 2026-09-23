@@ -20,10 +20,13 @@ MODULE Rope;
 
    This is a "core" rope: flat leaves and concatenation nodes only.  There
    are no lazy/function-generator leaves, no lazy substring nodes, and no
-   file-backed ropes; Substring always copies.
+   file-backed ropes; Substring always copies.  (ReadAll and ReadFile, at
+   the end, are not file-backed ropes: they read the whole file into
+   memory at once, like cord's CORD_from_file_eager, not CORD_from_file's
+   read-on-demand.)
 
-   Input and output (Write, WriteRider, ReadLine, ReadLineRider, at the
-   end) go leaf by leaf, never through one flat copy of the whole rope,
+   Input and output (Write, WriteRider, ReadLine, ReadLineRider, ReadAll,
+   ReadFile, WriteFile, at the end) go leaf by leaf, never through one flat copy of the whole rope,
    so they are not limited the way ToString into a fixed ARRAY OF CHAR
    is.  They and IterateChunks were ported back from the Ada Ropes
    package (its Process_Chunks and Ropes.Text_IO), as was the linear
@@ -53,6 +56,13 @@ CONST
      each full chunk becoming one leaf of the result, so a line of any
      length is read without one buffer as long as the whole line. *)
   LineChunk = 4096;
+
+  (* ReadAll/ReadFile read a file this many bytes at a time, each full
+     chunk becoming one leaf of the result -- not one leaf the size of the
+     whole file, since Substring copies the parts of leaves it covers, so
+     a one-leaf rope of a large file would make every later edit copy
+     all of it. *)
+  FileChunk = 4096;
 
 TYPE
   Rope* = POINTER TO RopeDesc;
@@ -1281,6 +1291,52 @@ BEGIN
   FlushChunk(line, buf, n);
   RETURN ~rd.eof OR any
 END ReadLineRider;
+
+(* Everything from rd's position to the end of its file, byte for byte --
+   no line feeds added, dropped or translated, unlike reading it line by
+   line with ReadLineRider, which cannot tell whether the last line had a
+   line feed after it.  NIL if there is nothing left.  Reads eagerly: this
+   is not a lazy, file-backed rope (see the module comment). *)
+PROCEDURE ReadAll*(VAR rd: Files.Rider): Rope;
+  VAR buf: ARRAY FileChunk OF CHAR; r: Rope; n: LONGINT;
+BEGIN
+  r := NIL;
+  REPEAT
+    Files.ReadBytes(rd, buf, FileChunk);
+    n := FileChunk - rd.res;  (* rd.res is how many of the FileChunk bytes were NOT read. *)
+    IF n > 0 THEN r := Cat(r, NewLeaf(buf, 0, n)) END
+  UNTIL rd.eof;
+  RETURN r
+END ReadAll;
+
+(* Sets r to the whole of the file named name, byte for byte (see
+   ReadAll), and returns TRUE; or, if there is no such file (Files.Old
+   gives NIL), sets r to NIL and returns FALSE.  A BOOLEAN rather than
+   just a NIL result because NIL is also the whole of an empty file. *)
+PROCEDURE ReadFile*(name: ARRAY OF CHAR; VAR r: Rope): BOOLEAN;
+  VAR f: Files.File; rd: Files.Rider;
+BEGIN
+  r := NIL;
+  f := Files.Old(name);
+  IF f = NIL THEN RETURN FALSE END;
+  Files.Set(rd, f, 0);
+  r := ReadAll(rd);
+  Files.Close(f);
+  RETURN TRUE
+END ReadFile;
+
+(* Creates the file named name, or replaces an existing one, containing
+   exactly r's characters (see WriteRider): Files.New, then
+   Files.Register.  Like Files.Register itself, HALTs (99) if the file
+   cannot be put in place -- there is no failure result to return. *)
+PROCEDURE WriteFile*(name: ARRAY OF CHAR; r: Rope);
+  VAR f: Files.File; w: Files.Rider;
+BEGIN
+  f := Files.New(name);
+  Files.Set(w, f, 0);
+  WriteRider(w, r);
+  Files.Register(f)
+END WriteFile;
 
 BEGIN
   InitMinLength

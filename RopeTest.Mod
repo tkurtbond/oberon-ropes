@@ -732,6 +732,84 @@ BEGIN
   Files.Close(f)
 END CheckWriteReadRider;
 
+(* --- ReadAll, ReadFile, WriteFile --- *)
+
+(* A rope of every byte value, 0X to 0FFX, n times over. *)
+PROCEDURE AllBytes(n: LONGINT): Rope.Rope;
+  VAR buf: ARRAY 256 OF CHAR; i: LONGINT;
+BEGIN
+  FOR i := 0 TO 255 DO buf[i] := CHR(i) END;
+  RETURN Rope.Repeat(Rope.FromSubstring(buf, 0, 256), n)
+END AllBytes;
+
+(* "one" CR LF "two" FF "three" 0X "four" LF "no final newline": what
+   reading line by line would lose -- the same bytes as
+   tests/data/exact.bin. *)
+PROCEDURE Tricky(): Rope.Rope;
+  VAR buf: ARRAY 64 OF CHAR; r: Rope.Rope;
+BEGIN
+  r := Rope.FromString("one");
+  r := Rope.AppendChar(Rope.AppendChar(r, 0DX), 0AX);
+  r := Rope.AppendChar(Rope.Cat(r, Rope.FromString("two")), 0CX);
+  r := Rope.AppendChar(Rope.Cat(r, Rope.FromString("three")), 0X);
+  r := Rope.AppendChar(Rope.Cat(r, Rope.FromString("four")), 0AX);
+  buf := "no final newline";
+  RETURN Rope.Cat(r, Rope.FromString(buf))
+END Tricky;
+
+PROCEDURE CheckReadAll;
+  CONST n = 7;
+  VAR f: Files.File; w, rd: Files.Rider; r: Rope.Rope; sizes: ARRAY n OF LONGINT; i: LONGINT; ok: BOOLEAN;
+BEGIN
+  f := Files.New("RopeTest.tmp");
+  Files.Set(w, f, 0);
+  Rope.WriteRider(w, Tricky());
+  Files.Set(rd, f, 0);
+  r := Rope.ReadAll(rd);
+  Check(Rope.Equal(r, Tricky()) & (Rope.Length(r) = Files.Length(f)),
+        "ReadAll: CR, form feed, 0X, and no final line feed survive, byte for byte");
+  Check(Rope.ReadAll(rd) = NIL, "ReadAll at end of file is NIL");
+  Files.Set(rd, f, 9);  (* "one" CR LF "two" FF is 9 bytes. *)
+  Check(StrEq(Rope.Substring(Rope.ReadAll(rd), 0, 5), "three"), "ReadAll: reads from the rider's position to the end");
+  Files.Close(f);
+
+  sizes[0] := 1; sizes[1] := 4095; sizes[2] := 4096; sizes[3] := 4097;
+  sizes[4] := 8192; sizes[5] := 8193; sizes[6] := 100000;
+  ok := TRUE;
+  FOR i := 0 TO n - 1 DO
+    f := Files.New("RopeTest.tmp");
+    Files.Set(w, f, 0);
+    Rope.WriteRider(w, Rope.Make(sizes[i], "z"));
+    Files.Set(rd, f, 0);
+    ok := ok & Rope.Equal(Rope.ReadAll(rd), Rope.Make(sizes[i], "z"));
+    Files.Close(f)
+  END;
+  Check(ok, "ReadAll: files of 1, 4095..4097, 8192, 8193, 100000 bytes each read back exactly")
+END CheckReadAll;
+
+PROCEDURE CheckReadWriteFile;
+  CONST name = "RopeTest-file.tmp";
+  VAR r, big: Rope.Rope; res: INTEGER;
+BEGIN
+  Rope.WriteFile(name, AllBytes(3));
+  Check(Rope.ReadFile(name, r) & Rope.Equal(r, AllBytes(3)), "WriteFile/ReadFile: all 256 byte values survive a round trip");
+
+  Rope.WriteFile(name, Rope.FromString("a longer first version"));
+  Rope.WriteFile(name, Rope.FromString("short"));
+  Check(Rope.ReadFile(name, r) & StrEq(r, "short"), "WriteFile replaces an existing file, not overwrites its start");
+
+  Rope.WriteFile(name, NIL);
+  Check(Rope.ReadFile(name, r) & (r = NIL), "WriteFile of NIL makes an empty file; ReadFile of it is TRUE with NIL");
+
+  big := Rope.Repeat(Rope.FromString("0123456789"), 100000);
+  Rope.WriteFile(name, big);
+  Check(Rope.ReadFile(name, r) & Rope.Equal(r, big), "WriteFile/ReadFile: a million-character rope round-trips");
+
+  Files.Delete(name, res);
+  r := Rope.FromString("not reset");
+  Check(~Rope.ReadFile(name, r) & (r = NIL), "ReadFile of a missing file is FALSE, with NIL")
+END CheckReadWriteFile;
+
 PROCEDURE Summary;
 BEGIN
   Out.Ln;
@@ -768,5 +846,7 @@ BEGIN
   CheckIterateChunks;
   CheckCompareLeafBoundaries;
   CheckWriteReadRider;
+  CheckReadAll;
+  CheckReadWriteFile;
   Summary
 END RopeTest.

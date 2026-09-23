@@ -22,7 +22,7 @@ VAR
   upperParser, lowerParser, capitalizeParser, uncapitalizeParser, escapedParser,
   makeParser, bigCatParser, indexCharParser, rIndexCharParser, containsParser,
   overwriteParser, headParser, tailParser, containsPatternParser,
-  iterateParser, iteratorParser, linesParser: ArgParser.Parser;
+  iterateParser, iteratorParser, linesParser, readFileParser: ArgParser.Parser;
 
   catCount: INTEGER; catA: Rope.Rope;
   subCount: INTEGER; subS: Rope.Rope; subStart: LONGINT;
@@ -493,6 +493,26 @@ BEGIN
   RETURN TRUE
 END LinesArgHandler;
 
+(* --- readfile FILE --- *)
+
+(* Demonstrates Rope.ReadFile: the whole file, byte for byte.  Printed
+   escaped (Rope.Escaped) so that what makes a byte-exact read different
+   from reading line by line -- a CR, a form feed, a 0X, whether there
+   is a final line feed -- shows in the output rather than being lost to
+   the terminal or to tests/run-tests.sh's trailing-white-space
+   stripping. *)
+PROCEDURE ReadFileArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+  VAR r: Rope.Rope;
+BEGIN
+  IF ~Rope.ReadFile(arg, r) THEN
+    Out.String('Error: cannot read "'); Out.String(arg); Out.String('"'); Out.Ln;
+    HALT(1)
+  END;
+  Out.Int(Rope.Length(r), 0); Out.Char(" ");
+  Rope.Write(Rope.Escaped(r)); Out.Ln;
+  RETURN TRUE
+END ReadFileArgHandler;
+
 BEGIN
   catCount := 0;
   subCount := 0;
@@ -550,6 +570,8 @@ BEGIN
     ArgParser.NewParser("iterator S  Print each character of S, one per line, via Rope.NewIterator/Get/Incr.", IteratorArgHandler);
   linesParser := ArgParser.NewParser(
     "lines FILE  Read FILE (standard input if FILE is -) and print each line's length, a space, and the line.", LinesArgHandler);
+  readFileParser := ArgParser.NewParser(
+    "readfile FILE  Read all of FILE, byte for byte, and print its length, a space, and its contents escaped.", ReadFileArgHandler);
 
   parser := ArgParser.NewParser("ropetool [options] command arguments...", TopArgHandler);
   parser.AddOption(ArgParser.MakeOption("h", "help", "Display help message and exit.", DoHelp));
@@ -584,6 +606,7 @@ BEGIN
   parser.AddCommand(ArgParser.MakeCommand("iterate", iterateParser));
   parser.AddCommand(ArgParser.MakeCommand("iterator", iteratorParser));
   parser.AddCommand(ArgParser.MakeCommand("lines", linesParser));
+  parser.AddCommand(ArgParser.MakeCommand("readfile", readFileParser));
 
   parser.ParseArguments(1)
 END RopeTool.
