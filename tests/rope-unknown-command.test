@@ -91,3 +91,9 @@ tail S COUNT PAD  Print the last COUNT characters of S, padded with PAD if COUNT
 
 containspattern S PATTERN FROM  Print TRUE or FALSE: whether PATTERN occurs in S at or after FROM.
 
+
+iterate S  Print each character of S, one per line, via Rope.Iterate.
+
+
+iterator S  Print each character of S, one per line, via Rope.NewIterator/Get/Incr.
+

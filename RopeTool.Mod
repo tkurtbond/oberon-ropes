@@ -16,7 +16,8 @@ VAR
   rfindParser, splitParser, trimParser, trimLeftParser, trimRightParser,
   upperParser, lowerParser, capitalizeParser, uncapitalizeParser, escapedParser,
   makeParser, bigCatParser, indexCharParser, rIndexCharParser, containsParser,
-  overwriteParser, headParser, tailParser, containsPatternParser: ArgParser.Parser;
+  overwriteParser, headParser, tailParser, containsPatternParser,
+  iterateParser, iteratorParser: ArgParser.Parser;
 
   catCount: INTEGER; catA: Rope.Rope;
   subCount: INTEGER; subS: Rope.Rope; subStart: LONGINT;
@@ -426,6 +427,43 @@ BEGIN
   RETURN TRUE
 END ContainsPatternArgHandler;
 
+(* --- iterate S --- *)
+
+(* The Visitor RopeTool passes to Rope.Iterate: print the character and
+   keep going -- there is no early-stop scenario to demonstrate from a
+   plain "print every character" command, so this always returns TRUE. *)
+PROCEDURE PrintCharVisitor(ch: CHAR): BOOLEAN;
+BEGIN
+  Out.Char(ch); Out.Ln;
+  RETURN TRUE
+END PrintCharVisitor;
+
+PROCEDURE IterateArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  Rope.Iterate(Rope.FromString(arg), PrintCharVisitor);
+  RETURN TRUE
+END IterateArgHandler;
+
+(* --- iterator S --- *)
+
+(* Same output as iterate above (one character per line), but walking
+   with Rope.NewIterator's Get/Incr instead of Rope.Iterate's Visitor
+   callback -- the other half of Rope.Mod's two, separate iteration
+   APIs (see the module comment there), so each gets its own command
+   rather than one standing in for both. *)
+PROCEDURE IteratorArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+  VAR r: Rope.Rope; it: Rope.Iterator; i, len: LONGINT;
+BEGIN
+  r := Rope.FromString(arg);
+  len := Rope.Length(r);
+  it := Rope.NewIterator(r, 0);
+  FOR i := 0 TO len - 1 DO
+    Out.Char(it.Get()); Out.Ln;
+    it.Incr
+  END;
+  RETURN TRUE
+END IteratorArgHandler;
+
 BEGIN
   catCount := 0;
   subCount := 0;
@@ -478,6 +516,9 @@ BEGIN
     ArgParser.NewParser("tail S COUNT PAD  Print the last COUNT characters of S, padded with PAD if COUNT exceeds Length(S).", TailArgHandler);
   containsPatternParser := ArgParser.NewParser(
     "containspattern S PATTERN FROM  Print TRUE or FALSE: whether PATTERN occurs in S at or after FROM.", ContainsPatternArgHandler);
+  iterateParser := ArgParser.NewParser("iterate S  Print each character of S, one per line, via Rope.Iterate.", IterateArgHandler);
+  iteratorParser :=
+    ArgParser.NewParser("iterator S  Print each character of S, one per line, via Rope.NewIterator/Get/Incr.", IteratorArgHandler);
 
   parser := ArgParser.NewParser("ropetool [options] command arguments...", TopArgHandler);
   parser.AddOption(ArgParser.MakeOption("h", "help", "Display help message and exit.", DoHelp));
@@ -509,6 +550,8 @@ BEGIN
   parser.AddCommand(ArgParser.MakeCommand("head", headParser));
   parser.AddCommand(ArgParser.MakeCommand("tail", tailParser));
   parser.AddCommand(ArgParser.MakeCommand("containspattern", containsPatternParser));
+  parser.AddCommand(ArgParser.MakeCommand("iterate", iterateParser));
+  parser.AddCommand(ArgParser.MakeCommand("iterator", iteratorParser));
 
   parser.ParseArguments(1)
 END RopeTool.

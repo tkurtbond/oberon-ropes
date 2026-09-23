@@ -3,8 +3,8 @@
 # absorb cases), Substring, Insert, Remove, Overwrite, Compare/Find/
 # Repeat, the auto-rebalance / explicit Balance machinery, Head/Tail,
 # and the newer additions (Map/Mapi, ASCII case, Trim, Escaped, char
-# search, ContainsPattern, RFind, Blit, Split, and the Iterator) all
-# still behave as designed.
+# search, ContainsPattern, RFind, Blit, Iterate, Split, and the
+# Iterator) all still behave as designed.
 program RopeTest
 status 0
 output
@@ -148,6 +148,9 @@ ok - ContainsPattern: the empty pattern always matches
 ok - ContainsPattern: not present in NIL (non-empty pattern)
 ok - ContainsPattern: the empty pattern matches even in NIL
 ok - Blit copies into the middle of dst without touching the rest
+ok - Iterate: visits every character in order
+ok - Iterate: stops early when visit returns FALSE
+ok - Iterate of NIL visits nothing
 ok - Split: visits every piece, including an empty one
 ok - Split: piece contents in order
 ok - Split: stops early when visit returns FALSE
@@ -173,4 +176,4 @@ ok - Iterator.Peek an arbitrary earlier position
 ok - Iterator.Peek does not change the current position
 ok - Iterator: walking forward matches Fetch at every position
 
-164/164 tests passed.
+167/167 tests passed.

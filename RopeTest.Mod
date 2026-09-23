@@ -11,6 +11,8 @@ VAR
   passed, failed: LONGINT;
   splitCount: LONGINT;
   splitBuf: ARRAY 8 OF ARRAY 16 OF CHAR;
+  iterateBuf: ARRAY 32 OF CHAR;
+  iterateLen: LONGINT;
 
 PROCEDURE Check(cond: BOOLEAN; name: ARRAY OF CHAR);
 BEGIN
@@ -397,6 +399,44 @@ BEGIN
         "Blit copies into the middle of dst without touching the rest");
 END CheckBlit;
 
+PROCEDURE CollectChar(ch: CHAR): BOOLEAN;
+BEGIN
+  IF iterateLen < LEN(iterateBuf) - 1 THEN
+    iterateBuf[iterateLen] := ch;
+    INC(iterateLen);
+    iterateBuf[iterateLen] := 0X
+  END;
+  RETURN TRUE
+END CollectChar;
+
+PROCEDURE StopAfterTwoChars(ch: CHAR): BOOLEAN;
+BEGIN
+  IF iterateLen < LEN(iterateBuf) - 1 THEN
+    iterateBuf[iterateLen] := ch;
+    INC(iterateLen);
+    iterateBuf[iterateLen] := 0X
+  END;
+  RETURN iterateLen < 2
+END StopAfterTwoChars;
+
+PROCEDURE CheckIterate;
+  VAR r: Rope.Rope;
+BEGIN
+  r := Rope.FromString("abcde");
+
+  iterateLen := 0; iterateBuf[0] := 0X;
+  Rope.Iterate(r, CollectChar);
+  Check(iterateBuf = "abcde", "Iterate: visits every character in order");
+
+  iterateLen := 0; iterateBuf[0] := 0X;
+  Rope.Iterate(r, StopAfterTwoChars);
+  Check(iterateBuf = "ab", "Iterate: stops early when visit returns FALSE");
+
+  iterateLen := 0; iterateBuf[0] := 0X;
+  Rope.Iterate(NIL, CollectChar);
+  Check(iterateBuf = "", "Iterate of NIL visits nothing");
+END CheckIterate;
+
 PROCEDURE CollectPiece(piece: Rope.Rope): BOOLEAN;
 BEGIN
   IF splitCount < LEN(splitBuf) THEN
@@ -524,6 +564,7 @@ BEGIN
   CheckIndexCharAndRFind;
   CheckContainsPattern;
   CheckBlit;
+  CheckIterate;
   CheckSplit;
   CheckIterator;
   Summary
