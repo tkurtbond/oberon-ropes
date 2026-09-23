@@ -6,9 +6,14 @@ MODULE RopeTool;
    sub-parsers pattern in Commands.Mod: each subcommand is its own
    sub-parser with its own ArgHandler, called once per positional
    argument, so a handler accumulates arguments until it has seen enough
-   to act. *)
+   to act.
 
-IMPORT ArgParser, Out, Rope;
+   Every rope result is printed with Rope.Write, leaf by leaf, so it is
+   never cut short: until Rope.Write existed this printed through
+   Rope.ToString into an ArgParser.MaxStringLength buffer, which silently
+   truncated any result longer than that (make 5000 x printed 4095 x's). *)
+
+IMPORT ArgParser, Files, Out, Rope;
 
 VAR
   parser, catParser, subParser, lenParser, fetchParser,
@@ -17,7 +22,7 @@ VAR
   upperParser, lowerParser, capitalizeParser, uncapitalizeParser, escapedParser,
   makeParser, bigCatParser, indexCharParser, rIndexCharParser, containsParser,
   overwriteParser, headParser, tailParser, containsPatternParser,
-  iterateParser, iteratorParser: ArgParser.Parser;
+  iterateParser, iteratorParser, linesParser: ArgParser.Parser;
 
   catCount: INTEGER; catA: Rope.Rope;
   subCount: INTEGER; subS: Rope.Rope; subStart: LONGINT;
@@ -38,13 +43,6 @@ VAR
   headCount: INTEGER; headS: Rope.Rope; headLen: LONGINT;
   tailCount: INTEGER; tailS: Rope.Rope; tailLen: LONGINT;
   containsPatternCount: INTEGER; containsPatternS: Rope.Rope; containsPatternPattern: ArgParser.String;
-
-PROCEDURE PrintRope(r: Rope.Rope);
-  VAR buf: ARRAY ArgParser.MaxStringLength + 1 OF CHAR;
-BEGIN
-  Rope.ToString(r, buf);
-  Out.String(buf)
-END PrintRope;
 
 PROCEDURE ParseInt(s: ARRAY OF CHAR): LONGINT;
   VAR val: LONGINT;
@@ -77,7 +75,7 @@ BEGIN
   IF catCount = 0 THEN
     catA := Rope.FromString(arg)
   ELSIF catCount = 1 THEN
-    PrintRope(Rope.Cat(catA, Rope.FromString(arg))); Out.Ln
+    Rope.Write(Rope.Cat(catA, Rope.FromString(arg))); Out.Ln
   END;
   INC(catCount);
   RETURN TRUE
@@ -92,7 +90,7 @@ BEGIN
   ELSIF subCount = 1 THEN
     subStart := ParseInt(arg)
   ELSIF subCount = 2 THEN
-    PrintRope(Rope.Substring(subS, subStart, ParseInt(arg))); Out.Ln
+    Rope.Write(Rope.Substring(subS, subStart, ParseInt(arg))); Out.Ln
   END;
   INC(subCount);
   RETURN TRUE
@@ -154,7 +152,7 @@ BEGIN
   IF repeatCount = 0 THEN
     repeatS := Rope.FromString(arg)
   ELSIF repeatCount = 1 THEN
-    PrintRope(Rope.Repeat(repeatS, ParseInt(arg))); Out.Ln
+    Rope.Write(Rope.Repeat(repeatS, ParseInt(arg))); Out.Ln
   END;
   INC(repeatCount);
   RETURN TRUE
@@ -169,7 +167,7 @@ BEGIN
   ELSIF insertCount = 1 THEN
     insertPos := ParseInt(arg)
   ELSIF insertCount = 2 THEN
-    PrintRope(Rope.Insert(insertS, insertPos, Rope.FromString(arg))); Out.Ln
+    Rope.Write(Rope.Insert(insertS, insertPos, Rope.FromString(arg))); Out.Ln
   END;
   INC(insertCount);
   RETURN TRUE
@@ -184,7 +182,7 @@ BEGIN
   ELSIF removeCount = 1 THEN
     removePos := ParseInt(arg)
   ELSIF removeCount = 2 THEN
-    PrintRope(Rope.Remove(removeS, removePos, ParseInt(arg))); Out.Ln
+    Rope.Write(Rope.Remove(removeS, removePos, ParseInt(arg))); Out.Ln
   END;
   INC(removeCount);
   RETURN TRUE
@@ -214,7 +212,7 @@ BEGIN
     splitS := Rope.FromString(arg)
   ELSIF splitCount = 1 THEN
     arr := Rope.SplitArray(splitS, arg);
-    FOR i := 0 TO LEN(arr^) - 1 DO PrintRope(arr[i]); Out.Ln END
+    FOR i := 0 TO LEN(arr^) - 1 DO Rope.Write(arr[i]); Out.Ln END
   END;
   INC(splitCount);
   RETURN TRUE
@@ -224,19 +222,19 @@ END SplitArgHandler;
 
 PROCEDURE TrimArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  PrintRope(Rope.Trim(Rope.FromString(arg))); Out.Ln;
+  Rope.Write(Rope.Trim(Rope.FromString(arg))); Out.Ln;
   RETURN TRUE
 END TrimArgHandler;
 
 PROCEDURE TrimLeftArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  PrintRope(Rope.TrimLeft(Rope.FromString(arg))); Out.Ln;
+  Rope.Write(Rope.TrimLeft(Rope.FromString(arg))); Out.Ln;
   RETURN TRUE
 END TrimLeftArgHandler;
 
 PROCEDURE TrimRightArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  PrintRope(Rope.TrimRight(Rope.FromString(arg))); Out.Ln;
+  Rope.Write(Rope.TrimRight(Rope.FromString(arg))); Out.Ln;
   RETURN TRUE
 END TrimRightArgHandler;
 
@@ -244,25 +242,25 @@ END TrimRightArgHandler;
 
 PROCEDURE UpperArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  PrintRope(Rope.UppercaseAscii(Rope.FromString(arg))); Out.Ln;
+  Rope.Write(Rope.UppercaseAscii(Rope.FromString(arg))); Out.Ln;
   RETURN TRUE
 END UpperArgHandler;
 
 PROCEDURE LowerArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  PrintRope(Rope.LowercaseAscii(Rope.FromString(arg))); Out.Ln;
+  Rope.Write(Rope.LowercaseAscii(Rope.FromString(arg))); Out.Ln;
   RETURN TRUE
 END LowerArgHandler;
 
 PROCEDURE CapitalizeArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  PrintRope(Rope.CapitalizeAscii(Rope.FromString(arg))); Out.Ln;
+  Rope.Write(Rope.CapitalizeAscii(Rope.FromString(arg))); Out.Ln;
   RETURN TRUE
 END CapitalizeArgHandler;
 
 PROCEDURE UncapitalizeArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  PrintRope(Rope.UncapitalizeAscii(Rope.FromString(arg))); Out.Ln;
+  Rope.Write(Rope.UncapitalizeAscii(Rope.FromString(arg))); Out.Ln;
   RETURN TRUE
 END UncapitalizeArgHandler;
 
@@ -270,7 +268,7 @@ END UncapitalizeArgHandler;
 
 PROCEDURE EscapedArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  PrintRope(Rope.Escaped(Rope.FromString(arg))); Out.Ln;
+  Rope.Write(Rope.Escaped(Rope.FromString(arg))); Out.Ln;
   RETURN TRUE
 END EscapedArgHandler;
 
@@ -281,7 +279,7 @@ BEGIN
   IF makeCount = 0 THEN
     makeLen := ParseInt(arg)
   ELSIF makeCount = 1 THEN
-    PrintRope(Rope.Make(makeLen, arg[0])); Out.Ln
+    Rope.Write(Rope.Make(makeLen, arg[0])); Out.Ln
   END;
   INC(makeCount);
   RETURN TRUE
@@ -371,7 +369,7 @@ BEGIN
   ELSIF overwriteCount = 1 THEN
     overwritePos := ParseInt(arg)
   ELSIF overwriteCount = 2 THEN
-    PrintRope(Rope.Overwrite(overwriteS, overwritePos, Rope.FromString(arg))); Out.Ln
+    Rope.Write(Rope.Overwrite(overwriteS, overwritePos, Rope.FromString(arg))); Out.Ln
   END;
   INC(overwriteCount);
   RETURN TRUE
@@ -386,7 +384,7 @@ BEGIN
   ELSIF headCount = 1 THEN
     headLen := ParseInt(arg)
   ELSIF headCount = 2 THEN
-    PrintRope(Rope.Head(headS, headLen, arg[0])); Out.Ln
+    Rope.Write(Rope.Head(headS, headLen, arg[0])); Out.Ln
   END;
   INC(headCount);
   RETURN TRUE
@@ -401,7 +399,7 @@ BEGIN
   ELSIF tailCount = 1 THEN
     tailLen := ParseInt(arg)
   ELSIF tailCount = 2 THEN
-    PrintRope(Rope.Tail(tailS, tailLen, arg[0])); Out.Ln
+    Rope.Write(Rope.Tail(tailS, tailLen, arg[0])); Out.Ln
   END;
   INC(tailCount);
   RETURN TRUE
@@ -464,6 +462,37 @@ BEGIN
   RETURN TRUE
 END IteratorArgHandler;
 
+(* --- lines FILE --- *)
+
+(* Prints a line's length, a space, and the line. *)
+PROCEDURE PrintLine(line: Rope.Rope);
+BEGIN
+  Out.Int(Rope.Length(line), 0); Out.Char(" ");
+  Rope.Write(line); Out.Ln
+END PrintLine;
+
+(* The one RopeTool command that reads input, demonstrating
+   Rope.ReadLine (standard input, when FILE is "-") and
+   Rope.ReadLineRider (anything else, opened with Files.Old): each line is
+   read whole, however long, without a buffer as long as the line. *)
+PROCEDURE LinesArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+  VAR f: Files.File; rd: Files.Rider; line: Rope.Rope;
+BEGIN
+  IF arg = "-" THEN
+    WHILE Rope.ReadLine(line) DO PrintLine(line) END
+  ELSE
+    f := Files.Old(arg);
+    IF f = NIL THEN
+      Out.String('Error: cannot open "'); Out.String(arg); Out.String('"'); Out.Ln;
+      HALT(1)
+    END;
+    Files.Set(rd, f, 0);
+    WHILE Rope.ReadLineRider(rd, line) DO PrintLine(line) END;
+    Files.Close(f)
+  END;
+  RETURN TRUE
+END LinesArgHandler;
+
 BEGIN
   catCount := 0;
   subCount := 0;
@@ -519,6 +548,8 @@ BEGIN
   iterateParser := ArgParser.NewParser("iterate S  Print each character of S, one per line, via Rope.Iterate.", IterateArgHandler);
   iteratorParser :=
     ArgParser.NewParser("iterator S  Print each character of S, one per line, via Rope.NewIterator/Get/Incr.", IteratorArgHandler);
+  linesParser := ArgParser.NewParser(
+    "lines FILE  Read FILE (standard input if FILE is -) and print each line's length, a space, and the line.", LinesArgHandler);
 
   parser := ArgParser.NewParser("ropetool [options] command arguments...", TopArgHandler);
   parser.AddOption(ArgParser.MakeOption("h", "help", "Display help message and exit.", DoHelp));
@@ -552,6 +583,7 @@ BEGIN
   parser.AddCommand(ArgParser.MakeCommand("containspattern", containsPatternParser));
   parser.AddCommand(ArgParser.MakeCommand("iterate", iterateParser));
   parser.AddCommand(ArgParser.MakeCommand("iterator", iteratorParser));
+  parser.AddCommand(ArgParser.MakeCommand("lines", linesParser));
 
   parser.ParseArguments(1)
 END RopeTool.

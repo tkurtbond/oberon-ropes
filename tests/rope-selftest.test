@@ -175,5 +175,24 @@ ok - Iterator.Source returns the rope it was made from
 ok - Iterator.Peek an arbitrary earlier position
 ok - Iterator.Peek does not change the current position
 ok - Iterator: walking forward matches Fetch at every position
+ok - IterateChunks of NIL visits nothing
+ok - IterateChunks: a many-leaf rope arrives as more than one chunk
+ok - IterateChunks: never passes an empty chunk
+ok - IterateChunks: chunks concatenate to the whole rope
+ok - IterateChunks: stops early when visit returns FALSE
+ok - IterateChunks: a chunk containing 0X is passed whole
+ok - Compare: same text, different leaf boundaries, is equal
+ok - Compare: a one-character difference at every position agrees with string comparison
+ok - Compare: every prefix length agrees with string comparison
+ok - Compare: two large equal ropes with no shared structure
+ok - Compare: a large rope sorts before itself plus one more character
+ok - Compare: a rope equals itself (shared tree)
+ok - WriteRider of NIL writes nothing
+ok - WriteRider/ReadLineRider: lines of length 0, 1, 4095..4097, 8191..8193, 100000 each read back exactly
+ok - ReadLineRider: FALSE, with NIL, at end of file
+ok - ReadLineRider: an unterminated last line of exactly 4096 characters
+ok - ReadLineRider: FALSE after an unterminated last line
+ok - WriteRider/ReadLineRider: a 0X inside a line round-trips
+ok - WriteRider/ReadLineRider: a million-character rope round-trips
 
-167/167 tests passed.
+186/186 tests passed.

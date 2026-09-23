@@ -5,7 +5,7 @@ MODULE RopeTest;
    failed, so tests/run-tests.sh's exit-status comparison catches a
    regression even if the output itself is not read. *)
 
-IMPORT Out, Rope;
+IMPORT Files, Out, Rope;
 
 VAR
   passed, failed: LONGINT;
@@ -13,6 +13,10 @@ VAR
   splitBuf: ARRAY 8 OF ARRAY 16 OF CHAR;
   iterateBuf: ARRAY 32 OF CHAR;
   iterateLen: LONGINT;
+  chunkCalls: LONGINT;
+  chunkEmpty: BOOLEAN;
+  chunkLens: ARRAY 8 OF LONGINT;
+  chunkAcc: Rope.Rope;
 
 PROCEDURE Check(cond: BOOLEAN; name: ARRAY OF CHAR);
 BEGIN
@@ -534,6 +538,200 @@ BEGIN
   Check(ok, "Iterator: walking forward matches Fetch at every position");
 END CheckIterator;
 
+(* --- IterateChunks, linear Compare, WriteRider/ReadLineRider --- *)
+
+(* Source split into leaves of size characters each (size > 16, the
+   short-leaf merge threshold, so Cat keeps them as separate leaves):
+   the first len characters of s only. *)
+PROCEDURE Chunked(s: ARRAY OF CHAR; len, size: LONGINT): Rope.Rope;
+  VAR r: Rope.Rope; i, n: LONGINT;
+BEGIN
+  r := NIL;
+  i := 0;
+  WHILE i < len DO
+    n := size;
+    IF i + n > len THEN n := len - i END;
+    r := Rope.Cat(r, Rope.FromSubstring(s, i, n));
+    INC(i, n)
+  END;
+  RETURN r
+END Chunked;
+
+(* 200 leaves of 50 characters each. *)
+PROCEDURE ManyLeaves(): Rope.Rope;
+  VAR r: Rope.Rope; i: LONGINT;
+BEGIN
+  r := NIL;
+  FOR i := 1 TO 200 DO r := Rope.Cat(r, Rope.Make(50, CHR(ORD("a") + i MOD 26))) END;
+  RETURN r
+END ManyLeaves;
+
+PROCEDURE CountChunk(VAR chunk: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF chunkCalls < LEN(chunkLens) THEN chunkLens[chunkCalls] := LEN(chunk) END;
+  INC(chunkCalls);
+  IF LEN(chunk) = 0 THEN chunkEmpty := TRUE END;
+  RETURN TRUE
+END CountChunk;
+
+PROCEDURE CollectChunk(VAR chunk: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  chunkAcc := Rope.Cat(chunkAcc, Rope.FromSubstring(chunk, 0, LEN(chunk)));
+  INC(chunkCalls);
+  RETURN TRUE
+END CollectChunk;
+
+PROCEDURE StopAfterTwoChunks(VAR chunk: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  INC(chunkCalls);
+  RETURN chunkCalls < 2
+END StopAfterTwoChunks;
+
+PROCEDURE CheckIterateChunks;
+  VAR r: Rope.Rope; buf: ARRAY 3 OF CHAR;
+BEGIN
+  chunkCalls := 0;
+  Rope.IterateChunks(NIL, CountChunk);
+  Check(chunkCalls = 0, "IterateChunks of NIL visits nothing");
+
+  r := ManyLeaves();
+  chunkCalls := 0; chunkEmpty := FALSE;
+  Rope.IterateChunks(r, CountChunk);
+  Check(chunkCalls > 1, "IterateChunks: a many-leaf rope arrives as more than one chunk");
+  Check(~chunkEmpty, "IterateChunks: never passes an empty chunk");
+
+  chunkCalls := 0; chunkAcc := NIL;
+  Rope.IterateChunks(r, CollectChunk);
+  Check(Rope.Equal(chunkAcc, r) & (Rope.Length(chunkAcc) = Rope.Length(r)),
+        "IterateChunks: chunks concatenate to the whole rope");
+
+  chunkCalls := 0;
+  Rope.IterateChunks(r, StopAfterTwoChunks);
+  Check(chunkCalls = 2, "IterateChunks: stops early when visit returns FALSE");
+
+  (* A leaf holding a 0X: the chunk is all LEN(chunk) characters, not cut
+     short at the 0X the way a 0X-terminated string would be. *)
+  buf[0] := "a"; buf[1] := 0X; buf[2] := "b";
+  chunkCalls := 0;
+  Rope.IterateChunks(Rope.FromSubstring(buf, 0, 3), CountChunk);
+  Check((chunkCalls = 1) & (chunkLens[0] = 3), "IterateChunks: a chunk containing 0X is passed whole");
+END CheckIterateChunks;
+
+(* Compare's oracle: Rope.Compare must agree in sign with Oberon's own
+   string comparison, whatever the two ropes' leaf boundaries are. *)
+PROCEDURE Agrees(a, b: Rope.Rope): BOOLEAN;
+  VAR sa, sb: ARRAY 256 OF CHAR; c: INTEGER;
+BEGIN
+  Rope.ToString(a, sa);
+  Rope.ToString(b, sb);
+  c := Rope.Compare(a, b);
+  RETURN ((c < 0) = (sa < sb)) & ((c = 0) = (sa = sb)) & ((c > 0) = (sa > sb))
+END Agrees;
+
+PROCEDURE CheckCompareLeafBoundaries;
+  VAR base, changed: ARRAY 201 OF CHAR; a, b, big1, big2: Rope.Rope; i, p, d, len: LONGINT; ok: BOOLEAN;
+BEGIN
+  FOR i := 0 TO 199 DO base[i] := CHR(ORD("a") + (i + 1) MOD 26) END;
+  base[200] := 0X;
+  a := Chunked(base, 200, 17);
+  Check(Rope.Equal(a, Chunked(base, 200, 23)) & Rope.Equal(Chunked(base, 200, 23), a),
+        "Compare: same text, different leaf boundaries, is equal");
+
+  (* One character changed, down, not at all, or up, at every position:
+     covers a difference at the first/last character and at, just before,
+     and just after every leaf boundary of either rope. *)
+  ok := TRUE;
+  FOR p := 0 TO 199 DO
+    FOR d := -1 TO 1 DO
+      changed := base;
+      changed[p] := CHR(ORD(changed[p]) + d);
+      b := Chunked(changed, 200, 23);
+      ok := ok & Agrees(a, b) & Agrees(b, a)
+    END
+  END;
+  Check(ok, "Compare: a one-character difference at every position agrees with string comparison");
+
+  ok := TRUE;
+  FOR len := 0 TO 200 DO
+    b := Chunked(base, len, 23);
+    ok := ok & Agrees(a, b) & Agrees(b, a)
+  END;
+  Check(ok, "Compare: every prefix length agrees with string comparison");
+
+  (* Twenty million characters each, built with different leaf sizes so
+     no subtree is shared: Compare used to Fetch every character from the
+     root, O(n log n); now linear. *)
+  big1 := Rope.Repeat(Rope.FromString("0123456789"), 2000000);
+  big2 := Rope.Repeat(Rope.FromString("01234567890123456789"), 1000000);
+  Check(Rope.Equal(big1, big2), "Compare: two large equal ropes with no shared structure");
+  Check(Rope.Compare(big1, Rope.AppendChar(big2, "x")) < 0, "Compare: a large rope sorts before itself plus one more character");
+  Check(Rope.Compare(big1, big1) = 0, "Compare: a rope equals itself (shared tree)")
+END CheckCompareLeafBoundaries;
+
+PROCEDURE WriteLine(VAR w: Files.Rider; r: Rope.Rope);
+BEGIN
+  Rope.WriteRider(w, r);
+  Files.Write(w, 0AX)
+END WriteLine;
+
+PROCEDURE CheckWriteReadRider;
+  CONST n = 9;
+  VAR f: Files.File; w, rd: Files.Rider; line, big: Rope.Rope; lens: ARRAY n OF LONGINT;
+      i: LONGINT; ok: BOOLEAN; buf: ARRAY 3 OF CHAR;
+BEGIN
+  lens[0] := 0; lens[1] := 1; lens[2] := 4095; lens[3] := 4096; lens[4] := 4097;
+  lens[5] := 8191; lens[6] := 8192; lens[7] := 8193; lens[8] := 100000;
+
+  (* Files.New without Files.Register: a temporary file, never given a
+     name on disk. *)
+  f := Files.New("RopeTest.tmp");
+  Files.Set(w, f, 0);
+  Rope.WriteRider(w, NIL);
+  Check(Files.Length(f) = 0, "WriteRider of NIL writes nothing");
+
+  FOR i := 0 TO n - 1 DO WriteLine(w, Rope.Make(lens[i], "q")) END;
+  Files.Set(rd, f, 0);
+  ok := TRUE;
+  FOR i := 0 TO n - 1 DO
+    ok := ok & Rope.ReadLineRider(rd, line) & Rope.Equal(line, Rope.Make(lens[i], "q"))
+  END;
+  Check(ok, "WriteRider/ReadLineRider: lines of length 0, 1, 4095..4097, 8191..8193, 100000 each read back exactly");
+  Check(~Rope.ReadLineRider(rd, line) & (line = NIL) & rd.eof, "ReadLineRider: FALSE, with NIL, at end of file");
+  Files.Close(f);
+
+  (* The last line exactly fills ReadLineRider's chunk, with no line feed
+     after it in the file at all. *)
+  f := Files.New("RopeTest.tmp");
+  Files.Set(w, f, 0);
+  Rope.WriteRider(w, Rope.Make(4096, "q"));
+  Files.Set(rd, f, 0);
+  Check(Rope.ReadLineRider(rd, line) & Rope.Equal(line, Rope.Make(4096, "q")),
+        "ReadLineRider: an unterminated last line of exactly 4096 characters");
+  Check(~Rope.ReadLineRider(rd, line), "ReadLineRider: FALSE after an unterminated last line");
+  Files.Close(f);
+
+  (* A 0X inside a line is just another character, both ways. *)
+  buf[0] := "a"; buf[1] := 0X; buf[2] := "b";
+  f := Files.New("RopeTest.tmp");
+  Files.Set(w, f, 0);
+  WriteLine(w, Rope.FromSubstring(buf, 0, 3));
+  Files.Set(rd, f, 0);
+  Check(Rope.ReadLineRider(rd, line) & (Rope.Length(line) = 3) & (Rope.Fetch(line, 1) = 0X) & (Rope.Fetch(line, 2) = "b"),
+        "WriteRider/ReadLineRider: a 0X inside a line round-trips");
+  Files.Close(f);
+
+  (* Far longer than ToString into ArgParser.MaxStringLength-sized buffers
+     could ever carry. *)
+  big := Rope.Repeat(Rope.FromString("0123456789"), 100000);
+  f := Files.New("RopeTest.tmp");
+  Files.Set(w, f, 0);
+  WriteLine(w, big);
+  Files.Set(rd, f, 0);
+  Check(Rope.ReadLineRider(rd, line) & (Rope.Length(line) = 1000000) & Rope.Equal(line, big),
+        "WriteRider/ReadLineRider: a million-character rope round-trips");
+  Files.Close(f)
+END CheckWriteReadRider;
+
 PROCEDURE Summary;
 BEGIN
   Out.Ln;
@@ -567,5 +765,8 @@ BEGIN
   CheckIterate;
   CheckSplit;
   CheckIterator;
+  CheckIterateChunks;
+  CheckCompareLeafBoundaries;
+  CheckWriteReadRider;
   Summary
 END RopeTest.

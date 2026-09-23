@@ -20,6 +20,9 @@
 #   env NAME=VALUE   set an environment variable for the program; repeat
 #                    for each variable (optional)
 #   dir DIRECTORY    run the program in this directory (optional)
+#   input FILE       the program's standard input, relative to DIRECTORY
+#                    (optional; default /dev/null, so no test can hang
+#                    waiting on the terminal)
 #   status N         the expected exit status
 #   output           everything after this line is the expected output
 #
@@ -81,6 +84,7 @@ for fixture in "${fixtures[@]}"; do
   program=
   status=
   dir=.
+  input=/dev/null
   args=()
   envs=()
   while IFS= read -r line; do
@@ -91,6 +95,7 @@ for fixture in "${fixtures[@]}"; do
       'arg '*)   args+=("${line#arg }") ;;
       'env '*)   envs+=("${line#env }") ;;
       'dir '*)   dir=${line#dir } ;;
+      'input '*) input=${line#input } ;;
       'status '*)  status=${line#status } ;;
       output)    break ;;
     esac
@@ -101,7 +106,7 @@ for fixture in "${fixtures[@]}"; do
     /*) exe=$bindir/$program ;;
     *)  exe=$root/$bindir/$program ;;
   esac
-  raw=$(cd "$dir" && env "${envs[@]}" "$exe" "${args[@]}" 2>&1)
+  raw=$(cd "$dir" && env "${envs[@]}" "$exe" "${args[@]}" < "$input" 2>&1)
   got=$?
   raw=${raw//"$exe"/$program}
   actual=$(printf '%s\n' "$raw" | strip)

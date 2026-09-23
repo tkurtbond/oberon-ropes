@@ -22,7 +22,16 @@ MODULE Rope;
    are no lazy/function-generator leaves, no lazy substring nodes, and no
    file-backed ropes; Substring always copies.
 
+   Input and output (Write, WriteRider, ReadLine, ReadLineRider, at the
+   end) go leaf by leaf, never through one flat copy of the whole rope,
+   so they are not limited the way ToString into a fixed ARRAY OF CHAR
+   is.  They and IterateChunks were ported back from the Ada Ropes
+   package (its Process_Chunks and Ropes.Text_IO), as was the linear
+   Compare.
+
    This is voc-only for now: it is not built by pocGNUmakefile. *)
+
+IMPORT Files, In, Out;
 
 CONST
   (* Cat merges two flat leaves into one instead of adding a Concat node
@@ -39,6 +48,11 @@ CONST
      (48, derived the same way for a 64-bit size_t) scaled to LONGINT's
      width. *)
   MaxDepth* = 44;
+
+  (* ReadLine/ReadLineRider read a line this many characters at a time,
+     each full chunk becoming one leaf of the result, so a line of any
+     length is read without one buffer as long as the whole line. *)
+  LineChunk = 4096;
 
 TYPE
   Rope* = POINTER TO RopeDesc;
@@ -75,6 +89,25 @@ TYPE
   (* Called by Split for each piece, left to right; returning FALSE stops
      the splitting early. *)
   Visitor2* = PROCEDURE (piece: Rope): BOOLEAN;
+
+  (* Called by IterateChunks for each leaf, left to right, with that
+     leaf's characters: all LEN(chunk) of them -- there is no 0X
+     terminator, and a chunk may itself contain 0X characters.  chunk is
+     the leaf's own storage, passed VAR only so that it is not copied: it
+     must not be modified, since ropes are immutable and may be shared.
+     Returning FALSE stops the iteration early. *)
+  ChunkVisitor* = PROCEDURE (VAR chunk: ARRAY OF CHAR): BOOLEAN;
+
+  (* A left-to-right walk over a rope's leaves, one leaf per NextLeaf
+     call, in amortized O(1) per leaf -- used by Compare.  A pre-order
+     walk with an explicit stack of subtrees still to visit (right pushed
+     before left, so left comes off first).  The stack never holds more
+     than depth + 1 entries, and every Concat's depth is set by
+     NewConcat, so r.depth + 1 always suffices. *)
+  LeafWalk = RECORD
+    stack: POINTER TO ARRAY OF Rope;
+    top: LONGINT
+  END;
 
   (* The result of SplitArray: one entry per piece, in order. *)
   Pieces* = POINTER TO ARRAY OF Rope;
@@ -583,19 +616,54 @@ END Contains;
 
 (* --- Comparison, search, iteration --- *)
 
-(* <0, 0 or >0, like strcmp: lexicographic by character, then by length. *)
-PROCEDURE Compare*(a, b: Rope): INTEGER;
-  VAR i, n: LONGINT; ca, cb: CHAR;
+(* Precondition: r # NIL. *)
+PROCEDURE StartWalk(VAR w: LeafWalk; r: Rope);
 BEGIN
-  n := Length(a);
-  IF Length(b) < n THEN n := Length(b) END;
-  i := 0;
-  WHILE i < n DO
-    ca := Fetch(a, i);
-    cb := Fetch(b, i);
-    IF ca < cb THEN RETURN -1 END;
-    IF ca > cb THEN RETURN 1 END;
-    INC(i)
+  NEW(w.stack, r.depth + 1);
+  w.stack[0] := r;
+  w.top := 1
+END StartWalk;
+
+(* Precondition: the walk has a leaf left to return. *)
+PROCEDURE NextLeaf(VAR w: LeafWalk): Leaf;
+  VAR n: Rope; c: Concat;
+BEGIN
+  LOOP
+    DEC(w.top);
+    n := w.stack[w.top];
+    IF n IS Leaf THEN RETURN n(Leaf) END;
+    c := n(Concat);
+    w.stack[w.top] := c.right;
+    w.stack[w.top + 1] := c.left;
+    INC(w.top, 2)
+  END
+END NextLeaf;
+
+(* <0, 0 or >0, like strcmp: lexicographic by character, then by length.
+   Linear in the common prefix: walks both ropes' leaves in step, reading
+   each leaf's characters directly, instead of a Fetch from the root per
+   character (O(n log n), ~7 s on two 20-million-character ropes in the
+   Ada port this was fixed in first).  Two ropes sharing a root compare
+   equal in O(1). *)
+PROCEDURE Compare*(a, b: Rope): INTEGER;
+  VAR wa, wb: LeafWalk; la, lb: Leaf; pa, pb, remaining: LONGINT; ca, cb: CHAR;
+BEGIN
+  IF a = b THEN RETURN 0 END;
+  remaining := Length(a);
+  IF Length(b) < remaining THEN remaining := Length(b) END;
+  IF remaining > 0 THEN
+    StartWalk(wa, a); StartWalk(wb, b);
+    la := NextLeaf(wa); lb := NextLeaf(wb);
+    pa := 0; pb := 0;
+    WHILE remaining > 0 DO
+      IF pa = la.length THEN la := NextLeaf(wa); pa := 0 END;
+      IF pb = lb.length THEN lb := NextLeaf(wb); pb := 0 END;
+      ca := la.chars[pa];
+      cb := lb.chars[pb];
+      IF ca < cb THEN RETURN -1 END;
+      IF ca > cb THEN RETURN 1 END;
+      INC(pa); INC(pb); DEC(remaining)
+    END
   END;
   IF Length(a) < Length(b) THEN RETURN -1 END;
   IF Length(a) > Length(b) THEN RETURN 1 END;
@@ -704,6 +772,30 @@ PROCEDURE Iterate*(r: Rope; visit: Visitor);
 BEGIN
   ignore := IterateHelper(r, visit)
 END Iterate;
+
+PROCEDURE IterateChunksHelper(r: Rope; visit: ChunkVisitor): BOOLEAN;
+  VAR c: Concat;
+BEGIN
+  IF r = NIL THEN RETURN TRUE END;
+  IF r IS Leaf THEN RETURN visit(r(Leaf).chars^) END;
+  c := r(Concat);
+  IF IterateChunksHelper(c.left, visit) THEN RETURN IterateChunksHelper(c.right, visit) END;
+  RETURN FALSE
+END IterateChunksHelper;
+
+(* Calls visit once per leaf of r, left to right, with that leaf's
+   characters (see ChunkVisitor), so the concatenation of every chunk
+   visited is r's whole contents; stops early if visit returns FALSE.
+   Never calls visit for NIL, and never with an empty chunk.  How r is
+   divided into chunks depends on how it was built; only their order and
+   concatenation are fixed.  The general way to hand a rope to something
+   that takes flat characters -- a file, a buffer, a checksum -- without
+   first copying all of it into one ARRAY OF CHAR. *)
+PROCEDURE IterateChunks*(r: Rope; visit: ChunkVisitor);
+  VAR ignore: BOOLEAN;
+BEGIN
+  ignore := IterateChunksHelper(r, visit)
+END IterateChunks;
 
 (* --- Split --- *)
 
@@ -1093,6 +1185,102 @@ BEGIN
   FOR i := 0 TO len - 1 DO result := EscapeChar(Fetch(r, i), result) END;
   RETURN result
 END Escaped;
+
+(* --- Input and output --- *)
+
+PROCEDURE WriteHelper(r: Rope);
+  VAR c: Concat; leaf: Leaf; i: LONGINT;
+BEGIN
+  IF r = NIL THEN RETURN END;
+  IF r IS Leaf THEN
+    leaf := r(Leaf);
+    (* Out.Char, not Out.String: a leaf has no 0X terminator and may
+       contain 0X characters itself, and Out.String stops at the first. *)
+    FOR i := 0 TO leaf.length - 1 DO Out.Char(leaf.chars[i]) END
+  ELSE
+    c := r(Concat);
+    WriteHelper(c.left);
+    WriteHelper(c.right)
+  END
+END WriteHelper;
+
+(* Writes r's characters to standard output, through Out, leaf by leaf --
+   never truncated, unlike ToString into a fixed buffer followed by
+   Out.String.  Ends with Out.Flush: voc's Out only flushes at a line
+   feed, and not at all when the program ends, so without it a rope
+   written with no line feed after it would never appear. *)
+PROCEDURE Write*(r: Rope);
+BEGIN
+  WriteHelper(r);
+  Out.Flush
+END Write;
+
+PROCEDURE WriteRiderHelper(VAR w: Files.Rider; r: Rope);
+  VAR c: Concat; leaf: Leaf;
+BEGIN
+  IF r = NIL THEN RETURN END;
+  IF r IS Leaf THEN
+    leaf := r(Leaf);
+    Files.WriteBytes(w, leaf.chars^, leaf.length)
+  ELSE
+    c := r(Concat);
+    WriteRiderHelper(w, c.left);
+    WriteRiderHelper(w, c.right)
+  END
+END WriteRiderHelper;
+
+(* Writes r's characters at w's position, advancing it, one
+   Files.WriteBytes per leaf.  Takes a Rider rather than a Files.File
+   because the Rider is what carries the position: to append to f, first
+   Files.Set(w, f, Files.Length(f)). *)
+PROCEDURE WriteRider*(VAR w: Files.Rider; r: Rope);
+BEGIN
+  WriteRiderHelper(w, r)
+END WriteRider;
+
+(* Appends buf[0 .. n-1] to line and resets n to 0; nothing if n = 0. *)
+PROCEDURE FlushChunk(VAR line: Rope; VAR buf: ARRAY OF CHAR; VAR n: LONGINT);
+BEGIN
+  IF n > 0 THEN line := Cat(line, NewLeaf(buf, 0, n)); n := 0 END
+END FlushChunk;
+
+(* Reads the next line of standard input, through In, into line, without
+   its line feed (a carriage return before it is kept, as on any
+   character-level Unix read).  TRUE if a line was read -- including an
+   empty one, which gives NIL, and a last line with no line feed after
+   it; FALSE, with line = NIL, only at end of input with nothing left to
+   read.  So: WHILE Rope.ReadLine(line) DO ... END. *)
+PROCEDURE ReadLine*(VAR line: Rope): BOOLEAN;
+  VAR buf: ARRAY LineChunk OF CHAR; n: LONGINT; ch: CHAR; any: BOOLEAN;
+BEGIN
+  line := NIL; n := 0; any := FALSE;
+  In.Char(ch);
+  WHILE In.Done & (ch # 0AX) DO
+    any := TRUE;
+    buf[n] := ch; INC(n);
+    IF n = LineChunk THEN FlushChunk(line, buf, n) END;
+    In.Char(ch)
+  END;
+  FlushChunk(line, buf, n);
+  RETURN In.Done OR any
+END ReadLine;
+
+(* Like ReadLine, but from rd, advancing it; FALSE (with rd.eof) only at
+   end of file with nothing left to read. *)
+PROCEDURE ReadLineRider*(VAR rd: Files.Rider; VAR line: Rope): BOOLEAN;
+  VAR buf: ARRAY LineChunk OF CHAR; n: LONGINT; ch: CHAR; any: BOOLEAN;
+BEGIN
+  line := NIL; n := 0; any := FALSE;
+  Files.Read(rd, ch);
+  WHILE ~rd.eof & (ch # 0AX) DO
+    any := TRUE;
+    buf[n] := ch; INC(n);
+    IF n = LineChunk THEN FlushChunk(line, buf, n) END;
+    Files.Read(rd, ch)
+  END;
+  FlushChunk(line, buf, n);
+  RETURN ~rd.eof OR any
+END ReadLineRider;
 
 BEGIN
   InitMinLength

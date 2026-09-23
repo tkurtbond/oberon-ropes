@@ -96,3 +96,6 @@ iterate S  Print each character of S, one per line, via Rope.Iterate.
 
 iterator S  Print each character of S, one per line, via Rope.NewIterator/Get/Incr.
 
+
+lines FILE  Read FILE (standard input if FILE is -) and print each line's length, a space, and the line.
+
