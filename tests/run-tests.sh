@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run the fixtures in this directory against the example programs and
+# Run the fixtures in this directory against the programs and
 # report how many passed.  With -v, also announce each test and its
 # outcome as it goes.  With -o, do that and also show what each program
 # actually printed (everything it wrote, exactly as it wrote it, and its
@@ -7,14 +7,14 @@
 # the tests to run, instead of all of them; each may be a bare NAME,
 # NAME.test, or tests/NAME.test.
 # The programs are run from BINDIR, relative to the directory above
-# (default: that directory itself), so a build made elsewhere, like poc's
-# in poc-build, can be tested too.
+# (default: that directory itself), so a build made elsewhere can be
+# tested too.
 #
-#   tests/run-tests.sh -o cmd-add cluster-repeat
+#   tests/run-tests.sh -o rope-hash rope-count
 #
 # A fixture is tests/NAME.test, with these lines, in this order:
 #
-#   program NAME     the example program to run, in the directory above
+#   program NAME     the program to run, in the directory above
 #   arg VALUE        one command line argument; repeat for each argument
 #                    (a bare "arg" is an empty argument)
 #   env NAME=VALUE   set an environment variable for the program; repeat

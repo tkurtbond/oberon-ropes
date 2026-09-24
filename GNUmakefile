@@ -2,25 +2,17 @@ VOC=voc
 VOCFLAGS=-f
 VOCMAIN=-m
 
-PROGRAMS=Simple Commands OneName OModPath RopeTool RopeTest
+PROGRAMS=RopeTool RopeTest
 
 .PHONY: all clean test test-verbose
 
 all: $(PROGRAMS)
 
-# All the example programs except RopeTest import ArgParser, so they need
-# its symbol file (built along with ArgParser.o) and are rebuilt when it
-# changes.
-$(filter-out RopeTest,$(PROGRAMS)): ArgParser.o
-
-# OModPath also writes to standard error, with Err, and tests whether files
-# exist, with FileTest.  They are Err.Mod and FileTest.Mod here for voc, and
-# poc-rtl/Err.Mod and poc-rtl/FileTest.Mod for poc.
-OModPath: Err.o FileTest.o
+# RopeTool imports ArgParser, so it needs its symbol file (built along with
+# ArgParser.o) and is rebuilt when it changes.
+RopeTool: ArgParser.o
 
 # RopeTool and RopeTest both import Rope, so they need its symbol file too.
-# Rope.Mod, RopeTool.Mod and RopeTest.Mod are voc-only for now: they are
-# not built by pocGNUmakefile.
 RopeTool RopeTest: Rope.o
 
 
@@ -31,7 +23,7 @@ RopeTool RopeTest: Rope.o
 	$(VOC) $(VOCFLAGS) -s $<
 
 
-# Run the fixtures in tests/ against the example programs and report how
+# Run the fixtures in tests/ against the programs and report how
 # many passed and failed.  See tests/run-tests.sh for the fixture format.
 test: all
 	./tests/run-tests.sh

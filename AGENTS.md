@@ -1,9 +1,10 @@
 # AGENTS.md
 
-Working notes for an agent in this repo, which holds Oberon-2 utility
-programs and modules built with voc (Vishap Oberon). Most of what
-follows is about `Rope.Mod`, `RopeTest.Mod` and `RopeTool.Mod`. Those
-modules are the model for the Ada port at `~/Repos/Ada/Ropes`, and
+Working notes for an agent in this repo, which holds `Rope.Mod`,
+`RopeTest.Mod` and `RopeTool.Mod`, Oberon-2 modules built with voc
+(Vishap Oberon). They moved here from `~/Repos/Oberon/oberon-tools`,
+and `ArgParser.Mod` is a copy of the one there. These modules are
+the model for the Ada port at `~/Repos/Ada/Ropes`, and
 several of that port's additions have been ported back here. Its
 `PLAN.md` has a full entry for each backport: Phases 9, 10, 12, 14
 and 26.
@@ -11,7 +12,7 @@ and 26.
 ## Build / test
 
 ```sh
-make                 # every program, with voc
+make                 # RopeTool and RopeTest, with voc
 make test            # build, then run tests/*.test; ends "N ok, M failed"
 tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their real output
 ```
@@ -21,9 +22,7 @@ tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their rea
 - A new module that a program imports needs a `Program: Module.o` line
   in the `GNUmakefile`, as `RopeTool RopeTest: Rope.o` does.
 - A new program goes in `PROGRAMS` and in `.gitignore`.
-- `pocGNUmakefile` builds some of the programs with poc into
-  `poc-build/`. See its header for why the build goes there. The
-  `Rope*` modules are voc-only, and poc doesn't build them.
+- The `Rope*` modules are voc-only; there is no poc build.
 - **`RopeTest` is the in-process check battery**, printing `ok -` or
   `not ok -` per check and then `N/M tests passed.`.
   `tests/rope-selftest.test` runs it and holds the full check list.
