@@ -37,6 +37,11 @@ tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their rea
   change. `make install` compiles `Ropes.Mod` first and doesn't need
   ArgParser. A `.Mod` here takes priority over the installed one, so
   this repo always builds its own `Ropes.Mod`.
+- **`make uninstall` removes only `Ropes.Mod`** from the first
+  directory in `OBERON_MODULES`, and succeeds if it is already gone.
+  Like `make clean` and `make install`, it doesn't need ArgParser.
+  `make clean` never touches `OBERON_MODULES`: it removes only the
+  build files here, including `ArgParser`'s.
 - The `Rope*` modules are voc-only; there is no poc build.
 - **`RopeTest` is the in-process check battery**, printing `ok -` or
   `not ok -` per check and then `N/M tests passed.`.
