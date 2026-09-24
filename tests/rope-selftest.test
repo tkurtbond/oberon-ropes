@@ -1,0 +1,258 @@
+# RopeTest's full internal check suite; status 0 and every check "ok"
+# confirms Rope.Mod's construction, Cat (incl. the short-leaf merge and
+# absorb cases), Substring, Insert, Remove, Overwrite, Compare/Find/
+# Repeat, the auto-rebalance / explicit Balance machinery, Head/Tail,
+# and the newer additions (Map/Mapi, ASCII case, Trim, Escaped, char
+# search, ContainsPattern, RFind, Blit, Iterate, Split, and the
+# Iterator) all still behave as designed -- and the ones ported back
+# from the Ada Ropes package later: IterateChunks, the linear Compare,
+# Rider and whole-file I/O, the leaf-walking searches, character sets,
+# FindToken, Count, Replace/ReplaceChar, Translate, mapped search,
+# CompareString, case-insensitive comparison and Hash.
+program RopeTest
+status 0
+output
+ok - FromString of an empty string is NIL
+ok - IsEmpty(NIL)
+ok - ~IsEmpty(FromString(x))
+ok - FromString/ToString round trip
+ok - Length of FromString(hello)
+ok - ToString(NIL) gives an empty string
+ok - ToString truncates to fit, like ArgParser.String
+ok - Length
+ok - Fetch first character
+ok - Fetch last character
+ok - Length(NIL) = 0
+ok - Cat(NIL, x) = x
+ok - Cat(x, NIL) = x
+ok - Cat of two short leaves: content
+ok - Cat of two short leaves merges into one leaf
+ok - First concat past the short-leaf limit has depth 1
+ok - Second concat past the short-leaf limit has depth 2
+ok - Absorbing a short leaf: content
+ok - Absorbing a short leaf keeps depth from growing
+ok - Cat of two large leaves: content
+ok - Cat of two large leaves has depth 1
+ok - Substring of the whole rope
+ok - Substring of length 0 is NIL
+ok - Substring clamps a negative start
+ok - Substring clamps an over-length end
+ok - Substring spanning two tree nodes
+ok - Substring starting past the end is NIL
+ok - Insert in the middle
+ok - Insert at the start
+ok - Insert at the end
+ok - Insert clamps a too-large pos to the end
+ok - Insert clamps a negative pos to the start
+ok - Insert into NIL is just the inserted rope
+ok - Insert of NIL leaves the rope unchanged
+ok - Insert of NIL into NIL is NIL
+ok - Insert: resulting length
+ok - Remove from the middle
+ok - Remove from the start
+ok - Remove clamps a too-large len to the end
+ok - Remove at a too-large pos removes nothing
+ok - Remove clamps a negative pos to the start
+ok - Remove clamps a negative len to 0
+ok - Remove of the whole rope is NIL
+ok - Remove from NIL is NIL
+ok - Remove of length 0 leaves the rope unchanged
+ok - Remove: resulting length
+ok - Overwrite replaces characters in the middle
+ok - Overwrite at the start
+ok - Overwrite past the end appends
+ok - Overwrite extends past the original end
+ok - Overwrite clamps a too-large pos to the end
+ok - Overwrite clamps a negative pos to the start
+ok - Overwrite into NIL is just the new rope
+ok - Overwrite of NIL leaves the rope unchanged
+ok - Overwrite of NIL into NIL is NIL
+ok - Overwrite: resulting length
+ok - Compare equal ropes
+ok - Compare less-than
+ok - Compare greater-than
+ok - Compare: shorter prefix sorts first
+ok - Equal
+ok - ~Equal
+ok - Find a substring present in the rope
+ok - Find a substring not present
+ok - Find starting from an offset
+ok - Find of the empty pattern
+ok - Repeat content
+ok - Repeat length
+ok - Repeat 0 times is NIL
+ok - Repeat of NIL is NIL
+ok - AppendChar x2000: length
+ok - AppendChar x2000: first character
+ok - AppendChar x2000: last character
+ok - AppendChar x2000: every character matches
+ok - AppendChar x2000: depth stays bounded well below MaxDepth
+ok - Balance preserves content
+ok - Balance does not increase depth
+ok - Balance brings depth down close to optimal for 2000 characters
+ok - A rope built by balanced doubling is strictly balanced
+ok - FromChar builds a one-character rope
+ok - FromChar: length
+ok - FromSubstring: content
+ok - FromSubstring of length 0 is NIL
+ok - Make: content
+ok - Make of length 0 is NIL
+ok - Make of negative length is NIL
+ok - Head takes the first COUNT characters
+ok - Head of exactly Length(r) characters is r itself
+ok - Head pads on the right when COUNT exceeds Length(r)
+ok - Head of 0 characters is NIL
+ok - Head of a negative COUNT is NIL
+ok - Head of NIL is COUNT copies of pad
+ok - Tail takes the last COUNT characters
+ok - Tail of exactly Length(r) characters is r itself
+ok - Tail pads on the left when COUNT exceeds Length(r)
+ok - Tail of 0 characters is NIL
+ok - Tail of a negative COUNT is NIL
+ok - Tail of NIL is COUNT copies of pad
+ok - Cat right at the LONGINT boundary succeeds
+ok - Map shifts every character
+ok - Map of NIL is NIL
+ok - Map preserves tree shape (same Depth)
+ok - Mapi: index threads correctly across a Concat node
+ok - UppercaseAscii
+ok - LowercaseAscii
+ok - CapitalizeAscii
+ok - UncapitalizeAscii
+ok - CapitalizeAscii of NIL is NIL
+ok - UncapitalizeAscii of NIL is NIL
+ok - TrimLeft
+ok - TrimRight
+ok - Trim
+ok - Trim of all-whitespace is NIL
+ok - Trim of NIL is NIL
+ok - Trim leaves a rope with no padding unchanged
+ok - Escape: double quote
+ok - Escape: tab
+ok - Escape: backslash
+ok - Escape of NIL is NIL
+ok - IndexChar: first occurrence
+ok - IndexChar: from an offset
+ok - IndexChar: not present
+ok - RIndexChar: last occurrence
+ok - RIndexChar: before an offset
+ok - RIndexChar: not present
+ok - Contains: present
+ok - Contains: not present
+ok - RFind: last occurrence searching the whole rope
+ok - RFind: a bound excludes a later occurrence
+ok - RFind: not present
+ok - RFind: empty pattern matches at the bound
+ok - ContainsPattern: present
+ok - ContainsPattern: not present
+ok - ContainsPattern: present at the very start
+ok - ContainsPattern: from an offset, still present
+ok - ContainsPattern: from an offset excludes an earlier occurrence
+ok - ContainsPattern: the empty pattern always matches
+ok - ContainsPattern: not present in NIL (non-empty pattern)
+ok - ContainsPattern: the empty pattern matches even in NIL
+ok - Blit copies into the middle of dst without touching the rest
+ok - Iterate: visits every character in order
+ok - Iterate: stops early when visit returns FALSE
+ok - Iterate of NIL visits nothing
+ok - Split: visits every piece, including an empty one
+ok - Split: piece contents in order
+ok - Split: stops early when visit returns FALSE
+ok - Split of NIL gives one empty piece
+ok - Split with an absent separator gives one piece: the whole rope
+ok - Split with an empty separator never splits
+ok - SplitArray: piece count
+ok - SplitArray: piece contents in order
+ok - SplitList: first piece
+ok - SplitList: second piece
+ok - SplitList: third (empty) piece is NIL
+ok - SplitList: fourth piece
+ok - SplitList: list ends after the last piece
+ok - NewIterator: initial position
+ok - Iterator.Get at the start
+ok - Iterator.Incr moves forward
+ok - Iterator.Goto: last character of the first leaf
+ok - Iterator.Get after crossing into the second leaf
+ok - Iterator.Decr moves back across the leaf boundary
+ok - Iterator.Move: last character of the rope
+ok - Iterator.Source returns the rope it was made from
+ok - Iterator.Peek an arbitrary earlier position
+ok - Iterator.Peek does not change the current position
+ok - Iterator: walking forward matches Fetch at every position
+ok - IterateChunks of NIL visits nothing
+ok - IterateChunks: a many-leaf rope arrives as more than one chunk
+ok - IterateChunks: never passes an empty chunk
+ok - IterateChunks: chunks concatenate to the whole rope
+ok - IterateChunks: stops early when visit returns FALSE
+ok - IterateChunks: a chunk containing 0X is passed whole
+ok - Compare: same text, different leaf boundaries, is equal
+ok - Compare: a one-character difference at every position agrees with string comparison
+ok - Compare: every prefix length agrees with string comparison
+ok - Compare: two large equal ropes with no shared structure
+ok - Compare: a large rope sorts before itself plus one more character
+ok - Compare: a rope equals itself (shared tree)
+ok - WriteRider of NIL writes nothing
+ok - WriteRider/ReadLineRider: lines of length 0, 1, 4095..4097, 8191..8193, 100000 each read back exactly
+ok - ReadLineRider: FALSE, with NIL, at end of file
+ok - ReadLineRider: an unterminated last line of exactly 4096 characters
+ok - ReadLineRider: FALSE after an unterminated last line
+ok - WriteRider/ReadLineRider: a 0X inside a line round-trips
+ok - WriteRider/ReadLineRider: a million-character rope round-trips
+ok - ReadAll: CR, form feed, 0X, and no final line feed survive, byte for byte
+ok - ReadAll at end of file is NIL
+ok - ReadAll: reads from the rider's position to the end
+ok - ReadAll: files of 1, 4095..4097, 8192, 8193, 100000 bytes each read back exactly
+ok - WriteFile/ReadFile: all 256 byte values survive a round trip
+ok - WriteFile replaces an existing file, not overwrites its start
+ok - WriteFile of NIL makes an empty file; ReadFile of it is TRUE with NIL
+ok - WriteFile/ReadFile: a million-character rope round-trips
+ok - ReadFile of a missing file is FALSE, with NIL
+ok - Blit: every start and length across leaf boundaries copies exactly that range
+ok - Escape: every kind of escape, including \NNN for 0X and 0FFX
+ok - Escape: leaf boundaries in the middle of the input don't change the result
+ok - Escape: a million-character input escapes the same as its pieces
+ok - Find, RFind, Count: every pattern and from, four tree shapes, agree with a naive search
+ok - FindMapped, RFindMapped, CountMapped: LowerChar and a swap mapper agree with a naive search
+ok - IndexSet, RIndexSet, IndexChar, RIndexChar: every from, both tests, agree with a naive scan
+ok - FindMapped: case-insensitive with LowerChar
+ok - FindMapped: the pattern is not mapped
+ok - FindMapped: a swap mapper finds abc for xyz
+ok - FindMapped: a NIL mapper is Find
+ok - Count and CountMapped
+ok - Count: the empty pattern never occurs
+ok - searches of NIL
+ok - Find and RFind on a twenty-million-character rope
+ok - Count on a twenty-million-character rope
+ok - IndexSet, RIndexSet
+ok - CountSet
+ok - IndexNonBlank, RIndexNonBlank
+ok - IndexNonBlank: all blank
+ok - FindToken: a digit run across a leaf boundary
+ok - FindToken: not in set (outside)
+ok - FindToken: none gives start = from, len = 0
+ok - FindToken: a negative from is treated as 0
+ok - Replace: a slice across the leaf boundary
+ok - Replace: len 0 inserts
+ok - Replace: len past the end is clamped
+ok - Replace: a negative pos is clamped, NIL by removes
+ok - Replace: pos past the end appends
+ok - ReplaceChar; r itself unchanged
+ok - ReplaceChar: the last character
+ok - MakeMapping: valid
+ok - Translate: characters mapped, tree shape kept
+ok - MakeMapping: different lengths fail, leaving the identity
+ok - MakeMapping: a repeated from character fails
+ok - Translate: many to one
+ok - Translate of NIL is NIL
+ok - CompareString: every prefix, both ways, agrees with Compare
+ok - CompareNoCase, EqualNoCase: every pair of prefixes agrees with Compare on LowercaseAscii
+ok - EqualString
+ok - EqualNoCase: across case
+ok - Hash: GNAT's Ada.Strings.Hash value
+ok - HashNoCase: GNAT's Hash_Case_Insensitive value
+ok - Hash: the same whatever the leaves
+ok - Hash: distinguishes case
+ok - HashNoCase: the same for any case
+ok - Hash of NIL is 0
+
+242/242 tests passed.

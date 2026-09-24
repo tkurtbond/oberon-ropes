@@ -1,0 +1,13 @@
+# Rope.Blit: "world" (5 characters of S from index 6) copied into DST at
+# index 2, and the rest of DST left as it was.  The Ada Ropes port's
+# equivalent is rope_tool's copyslice (Ropes.Copy_Slice).
+program RopeTool
+arg blit
+arg hello world
+arg 6
+arg XXXXXXXXX
+arg 2
+arg 5
+status 0
+output
+XXworldXX

@@ -1,0 +1,9 @@
+# Translate with MakeMapping(FROM, TO): a, b, c and x, y, z swap.
+program RopeTool
+arg translate
+arg abc to xyz
+arg abcxyz
+arg xyzabc
+status 0
+output
+xyz to abc

@@ -1,0 +1,10 @@
+# POS past the last character: ReplaceChar would trap, as Fetch does;
+# RopeTool reports it instead.
+program RopeTool
+arg replacechar
+arg hello
+arg 5
+arg J
+status 1
+output
+Error: POS out of range

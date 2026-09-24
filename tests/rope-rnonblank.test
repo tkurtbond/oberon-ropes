@@ -1,0 +1,9 @@
+# RIndexNonBlank: the last non-space character, searching the whole
+# rope.
+program RopeTool
+arg rnonblank
+arg    x  y  
+arg 100
+status 0
+output
+6

@@ -1,0 +1,6 @@
+program RopeTool
+arg triml
+arg   hi there  
+status 0
+output
+hi there  

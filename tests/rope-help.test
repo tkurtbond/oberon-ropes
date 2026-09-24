@@ -1,0 +1,152 @@
+program RopeTool
+arg -h
+status 0
+output
+ropetool [options] command arguments...
+
+  -h, --help
+      Display help message and exit.
+
+cat A B  Print the concatenation of A and B.
+
+
+sub S START LEN  Print the substring of S from START, LEN characters.
+
+
+len S  Print the length of S.
+
+
+fetch S I  Print the character of S at index I.
+
+
+cmp A B  Print -1, 0 or 1: how A compares to B.
+
+
+find S PATTERN FROM  Print the index of PATTERN in S at or after FROM, or -1.
+
+
+repeat S N  Print N concatenated copies of S.
+
+
+insert S POS INS  Print S with INS inserted before index POS.
+
+
+remove S POS LEN  Print S with LEN characters removed starting at POS.
+
+
+rfind S PATTERN BEFORE  Print the index of the last PATTERN in S at or before BEFORE, or -1.
+
+
+split S SEP  Print each piece of S split on SEP, one per line.
+
+
+trim S  Print S with leading and trailing whitespace removed.
+
+
+triml S  Print S with leading whitespace removed.
+
+
+trimr S  Print S with trailing whitespace removed.
+
+
+upper S  Print S with ASCII letters uppercased.
+
+
+lower S  Print S with ASCII letters lowercased.
+
+
+capitalize S  Print S with its first character uppercased (ASCII only).
+
+
+uncapitalize S  Print S with its first character lowercased (ASCII only).
+
+
+escaped S  Print S with special and non-printable characters escaped.
+
+
+make LEN CH  Print a rope of LEN copies of CH.
+
+
+bigcat N1 CH1 N2 CH2  Print the length of N1 copies of CH1 concatenated with N2 copies of CH2.
+
+
+indexchar S CH FROM  Print the index of CH in S at or after FROM, or -1.
+
+
+rindexchar S CH BEFORE  Print the index of CH in S at or before BEFORE, or -1.
+
+
+contains S CH FROM  Print TRUE or FALSE: whether CH occurs in S at or after FROM.
+
+
+overwrite S POS NEW  Print S with the characters from POS replaced by NEW.
+
+
+head S COUNT PAD  Print the first COUNT characters of S, padded with PAD if COUNT exceeds Length(S).
+
+
+tail S COUNT PAD  Print the last COUNT characters of S, padded with PAD if COUNT exceeds Length(S).
+
+
+containspattern S PATTERN FROM  Print TRUE or FALSE: whether PATTERN occurs in S at or after FROM.
+
+
+iterate S  Print each character of S, one per line, via Rope.Iterate.
+
+
+iterator S  Print each character of S, one per line, via Rope.NewIterator/Get/Incr.
+
+
+lines FILE  Read FILE (standard input if FILE is -) and print each line's length, a space, and the line.
+
+
+readfile FILE  Read all of FILE, byte for byte, and print its length, a space, and its contents escaped.
+
+
+blit S SRCSTART DST DSTSTART LEN  Print DST with LEN characters of S from SRCSTART copied into it at DSTSTART.
+
+
+replace S POS LEN BY  Print S with the LEN characters at POS replaced by BY.
+
+
+replacechar S POS CH  Print S with the character at POS replaced by CH.
+
+
+count S PATTERN  Print the number of non-overlapping occurrences of PATTERN in S.
+
+
+countset S CHARS  Print the number of characters of S that are any of CHARS.
+
+
+indexset S CHARS FROM  Print the index of the first character of S at or after FROM that is any of CHARS, or -1.
+
+
+rindexset S CHARS BEFORE  Print the index of the last character of S at or before BEFORE that is any of CHARS, or -1.
+
+
+nonblank S FROM  Print the index of the first non-space character of S at or after FROM, or -1.
+
+
+rnonblank S BEFORE  Print the index of the last non-space character of S at or before BEFORE, or -1.
+
+
+findtoken S CHARS FROM  Print START LEN: the first run of characters of S at or after FROM that are any of CHARS.
+
+
+translate S FROM TO  Print S with each character in FROM replaced by the one at the same place in TO.
+
+
+cmpnocase A B  Print -1, 0 or 1: how A compares to B, ignoring ASCII case.
+
+
+hash S  Print the hash of S.
+
+
+hashnocase S  Print the hash of S, ignoring ASCII case.
+
+
+findnocase S PATTERN FROM  Print the index of PATTERN in S at or after FROM, ignoring ASCII case, or -1.
+
+
+countnocase S PATTERN  Print the number of non-overlapping occurrences of PATTERN in S, ignoring ASCII case.
+

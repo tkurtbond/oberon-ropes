@@ -1,0 +1,8 @@
+program RopeTool
+arg rindexchar
+arg abcabc
+arg b
+arg 3
+status 0
+output
+1

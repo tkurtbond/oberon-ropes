@@ -1,0 +1,6 @@
+program RopeTool
+arg uncapitalize
+arg Hello
+status 0
+output
+hello

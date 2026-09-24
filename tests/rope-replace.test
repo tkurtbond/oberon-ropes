@@ -1,0 +1,11 @@
+# Replace: the LEN characters at POS (0-based) become BY -- here
+# "World" becomes "Oberon".
+program RopeTool
+arg replace
+arg Hello, World!
+arg 7
+arg 5
+arg Oberon
+status 0
+output
+Hello, Oberon!

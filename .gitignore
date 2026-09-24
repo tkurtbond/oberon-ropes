@@ -1,0 +1,11 @@
+*.h
+*.c
+*.o
+*.sym
+/Simple
+/Commands
+/poc-build/
+/OneName
+/OModPath
+/RopeTool
+/RopeTest

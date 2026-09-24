@@ -1,0 +1,9 @@
+# ReplaceChar: the character at POS (0-based) becomes CH.
+program RopeTool
+arg replacechar
+arg hello, world
+arg 7
+arg W
+status 0
+output
+hello, World

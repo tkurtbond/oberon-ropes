@@ -1,0 +1,8 @@
+program RopeTool
+arg iterator
+arg abc
+status 0
+output
+a
+b
+c

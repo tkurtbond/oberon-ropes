@@ -1,0 +1,11 @@
+# 1_200_000_000 + 1_200_000_000 = 2_400_000_000, over MAX(LONGINT)
+# (2147483647).  Rope.Cat's overflow guard HALTs instead of silently
+# wrapping the combined length to a negative number.
+program RopeTool
+arg bigcat
+arg 1200000000
+arg x
+arg 1200000000
+arg y
+status 1
+output

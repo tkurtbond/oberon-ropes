@@ -1,0 +1,10 @@
+# FindMapped with LowerChar, the pattern lowered: a case-insensitive
+# search (0-based, so one less than the Ada rope_tool indexci).
+program RopeTool
+arg findnocase
+arg The Quick BROWN Fox
+arg brown FOX
+arg 0
+status 0
+output
+10

@@ -1,0 +1,7 @@
+# A FILE that does not exist: an error message and HALT(1).
+program RopeTool
+arg lines
+arg tests/data/no-such-file.txt
+status 1
+output
+Error: cannot open "tests/data/no-such-file.txt"

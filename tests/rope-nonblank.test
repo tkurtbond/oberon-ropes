@@ -1,0 +1,8 @@
+# IndexNonBlank: the first non-space character at or after 0.
+program RopeTool
+arg nonblank
+arg    x  y  
+arg 0
+status 0
+output
+3

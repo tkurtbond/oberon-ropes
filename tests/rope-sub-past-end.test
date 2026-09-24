@@ -1,0 +1,10 @@
+# A start past the end of the rope clamps to the empty rope, printed as
+# an empty line.
+program RopeTool
+arg sub
+arg hello world
+arg 100
+arg 5
+status 0
+output
+

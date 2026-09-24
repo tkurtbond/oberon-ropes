@@ -1,0 +1,8 @@
+program RopeTool
+arg containspattern
+arg hello world
+arg world
+arg 0
+status 0
+output
+TRUE

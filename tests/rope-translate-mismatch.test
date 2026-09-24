@@ -1,0 +1,9 @@
+# FROM and TO of different lengths: MakeMapping returns FALSE.
+program RopeTool
+arg translate
+arg abc
+arg abc
+arg xy
+status 1
+output
+Error: FROM and TO must be the same length, with no character repeated in FROM

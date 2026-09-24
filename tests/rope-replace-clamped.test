@@ -1,0 +1,11 @@
+# Replace clamps POS and LEN as Remove does: a LEN running past the
+# end replaces through the end.
+program RopeTool
+arg replace
+arg Hello, World!
+arg 7
+arg 100
+arg you
+status 0
+output
+Hello, you

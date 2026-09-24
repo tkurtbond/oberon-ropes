@@ -1,0 +1,8 @@
+# Count: non-overlapping occurrences, left to right.
+program RopeTool
+arg count
+arg the cat sat on the mat
+arg at
+status 0
+output
+3

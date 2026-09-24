@@ -1,0 +1,10 @@
+# "World" occurs at index 7 and again at 14; a bound of 13 excludes the
+# second occurrence, so this finds the first one.
+program RopeTool
+arg rfind
+arg Hello, World! World!
+arg World
+arg 13
+status 0
+output
+7

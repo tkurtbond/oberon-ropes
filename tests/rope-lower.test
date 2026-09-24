@@ -1,0 +1,6 @@
+program RopeTool
+arg lower
+arg Hello, World!
+status 0
+output
+hello, world!
