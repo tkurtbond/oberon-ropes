@@ -15,10 +15,11 @@ It moved here, with its history, from
 ## Building and testing
 
 `RopeTool` uses `ArgParser.Mod` to parse its command line. It has its
-own repo, `~/Repos/Oberon/ArgParser`, where `make install` installs
-it, so it isn't here: the
-`GNUmakefile` finds it in `OBERON_MODULES`, a colon-separated list of
-directories (default `/usr/local/sw/versions/oberon/include`), and
+own repo,
+[`oberon-argparser`](https://github.com/tkurtbond/oberon-argparser),
+where `make install` installs it, so it isn't here: the `GNUmakefile`
+finds it in `OBERON_MODULES`, a colon-separated list of directories
+(default `/usr/local/sw/versions/oberon/include`), and
 builds it here along with the programs.
 
 ```sh
