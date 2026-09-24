@@ -859,6 +859,310 @@ BEGIN
         "Escape: a million-character input escapes the same as its pieces")
 END CheckEscapeAcrossLeaves;
 
+(* --- Ported back from the Ada Ropes package: faster search, sets,
+   tokens, Count, Replace/ReplaceChar, Translate, mapped search,
+   CompareString, case-insensitive comparison, Hash --- *)
+
+(* Searches' oracles: the same search, done naively over a flat array
+   s[0 .. n-1] with Rope.Mod's own clamping conventions, so that a rope
+   search can be checked against it whatever the rope's leaves.  f, if
+   not NIL, maps s's characters before comparing. *)
+PROCEDURE Mapped(ch: CHAR; f: Rope.Mapper): CHAR;
+BEGIN
+  IF f # NIL THEN RETURN f(ch) END;
+  RETURN ch
+END Mapped;
+
+PROCEDURE MatchesAt(VAR s: ARRAY OF CHAR; i: LONGINT; pat: ARRAY OF CHAR; patLen: LONGINT; f: Rope.Mapper): BOOLEAN;
+  VAR k: LONGINT;
+BEGIN
+  FOR k := 0 TO patLen - 1 DO
+    IF Mapped(s[i + k], f) # pat[k] THEN RETURN FALSE END
+  END;
+  RETURN TRUE
+END MatchesAt;
+
+PROCEDURE NaiveFind(VAR s: ARRAY OF CHAR; n: LONGINT; pat: ARRAY OF CHAR; from: LONGINT; f: Rope.Mapper): LONGINT;
+  VAR patLen, i: LONGINT;
+BEGIN
+  patLen := 0;
+  WHILE (patLen < LEN(pat)) & (pat[patLen] # 0X) DO INC(patLen) END;
+  IF from < 0 THEN from := 0 END;
+  IF patLen = 0 THEN
+    IF from > n THEN RETURN -1 END;
+    RETURN from
+  END;
+  FOR i := from TO n - patLen DO
+    IF MatchesAt(s, i, pat, patLen, f) THEN RETURN i END
+  END;
+  RETURN -1
+END NaiveFind;
+
+PROCEDURE NaiveRFind(VAR s: ARRAY OF CHAR; n: LONGINT; pat: ARRAY OF CHAR; before: LONGINT; f: Rope.Mapper): LONGINT;
+  VAR patLen, i: LONGINT;
+BEGIN
+  patLen := 0;
+  WHILE (patLen < LEN(pat)) & (pat[patLen] # 0X) DO INC(patLen) END;
+  IF patLen = 0 THEN
+    IF before < 0 THEN RETURN -1 END;
+    IF before > n THEN RETURN n END;
+    RETURN before
+  END;
+  IF before > n - patLen THEN before := n - patLen END;
+  FOR i := before TO 0 BY -1 DO
+    IF MatchesAt(s, i, pat, patLen, f) THEN RETURN i END
+  END;
+  RETURN -1
+END NaiveRFind;
+
+PROCEDURE NaiveCount(VAR s: ARRAY OF CHAR; n: LONGINT; pat: ARRAY OF CHAR; f: Rope.Mapper): LONGINT;
+  VAR patLen, from, pos, count: LONGINT;
+BEGIN
+  patLen := 0;
+  WHILE (patLen < LEN(pat)) & (pat[patLen] # 0X) DO INC(patLen) END;
+  count := 0;
+  IF patLen = 0 THEN RETURN 0 END;
+  from := 0;
+  LOOP
+    pos := NaiveFind(s, n, pat, from, f);
+    IF pos < 0 THEN EXIT END;
+    INC(count);
+    from := pos + patLen
+  END;
+  RETURN count
+END NaiveCount;
+
+PROCEDURE NaiveIndexSet(VAR s: ARRAY OF CHAR; n: LONGINT; VAR set: Rope.CharSet; inside: BOOLEAN; from: LONGINT; forward: BOOLEAN): LONGINT;
+  VAR i: LONGINT;
+BEGIN
+  IF forward THEN
+    IF from < 0 THEN from := 0 END;
+    FOR i := from TO n - 1 DO
+      IF set.has[ORD(s[i])] = inside THEN RETURN i END
+    END
+  ELSE
+    IF from > n - 1 THEN from := n - 1 END;
+    FOR i := from TO 0 BY -1 DO
+      IF set.has[ORD(s[i])] = inside THEN RETURN i END
+    END
+  END;
+  RETURN -1
+END NaiveIndexSet;
+
+(* Swaps a, b, c with x, y, z: a mapping that changes a pattern's own
+   characters, so a search that wrongly mapped the pattern as well as
+   the rope would find different matches. *)
+PROCEDURE SwapMapper(ch: CHAR): CHAR;
+BEGIN
+  CASE ch OF
+    "a": RETURN "x" | "b": RETURN "y" | "c": RETURN "z"
+  | "x": RETURN "a" | "y": RETURN "b" | "z": RETURN "c"
+  ELSE RETURN ch
+  END
+END SwapMapper;
+
+(* The first len characters of s in leaves of size characters, built by
+   prepending, so the tree is right-deep: its walks keep Concat nodes on
+   their stacks, where Chunked's left-deep trees give forward walks only
+   leaves. *)
+PROCEDURE RightDeep(s: ARRAY OF CHAR; len, size: LONGINT): Rope.Rope;
+  VAR r: Rope.Rope; i: LONGINT;
+BEGIN
+  r := NIL;
+  i := len - len MOD size;
+  IF i = len THEN DEC(i, size) END;
+  WHILE i >= 0 DO
+    r := Rope.Cat(Rope.FromSubstring(s, i, len - i - Rope.Length(r)), r);
+    DEC(i, size)
+  END;
+  RETURN r
+END RightDeep;
+
+(* Every search of text[0 .. n-1], as four tree shapes, against the
+   naive ones, for every pattern in pats and every from: ok for the
+   unmapped searches, okMapped for the mapped ones, okSet for the
+   character and set scans. *)
+PROCEDURE CompareSearches(VAR text: ARRAY OF CHAR; n: LONGINT; VAR pats: ARRAY OF ARRAY OF CHAR;
+                          VAR ok, okMapped, okSet: BOOLEAN);
+  VAR i, from: LONGINT; r: Rope.Rope; set: Rope.CharSet; mappers: ARRAY 3 OF Rope.Mapper; m, shape: INTEGER;
+BEGIN
+  mappers[0] := NIL; mappers[1] := Rope.LowerChar; mappers[2] := SwapMapper;
+  Rope.MakeCharSet("aeiou ", set);
+  FOR shape := 0 TO 3 DO
+    IF shape = 0 THEN r := Chunked(text, n, 17)
+    ELSIF shape = 1 THEN r := Chunked(text, n, 23)
+    ELSIF shape = 2 THEN r := RightDeep(text, n, 17)
+    ELSE r := Rope.Balance(Chunked(text, n, 17))
+    END;
+    FOR from := -2 TO n + 2 DO
+      FOR i := 0 TO LEN(pats) - 1 DO
+        ok := ok & (Rope.Find(r, pats[i], from) = NaiveFind(text, n, pats[i], from, NIL))
+                 & (Rope.RFind(r, pats[i], from) = NaiveRFind(text, n, pats[i], from, NIL));
+        FOR m := 1 TO 2 DO
+          okMapped := okMapped
+            & (Rope.FindMapped(r, pats[i], from, mappers[m]) = NaiveFind(text, n, pats[i], from, mappers[m]))
+            & (Rope.RFindMapped(r, pats[i], from, mappers[m]) = NaiveRFind(text, n, pats[i], from, mappers[m]))
+        END
+      END;
+      okSet := okSet
+        & (Rope.IndexSet(r, set, TRUE, from) = NaiveIndexSet(text, n, set, TRUE, from, TRUE))
+        & (Rope.IndexSet(r, set, FALSE, from) = NaiveIndexSet(text, n, set, FALSE, from, TRUE))
+        & (Rope.RIndexSet(r, set, TRUE, from) = NaiveIndexSet(text, n, set, TRUE, from, FALSE))
+        & (Rope.RIndexSet(r, set, FALSE, from) = NaiveIndexSet(text, n, set, FALSE, from, FALSE))
+        & (Rope.IndexChar(r, "e", from) = NaiveFind(text, n, "e", from, NIL))
+        & (Rope.RIndexChar(r, "e", from) = NaiveRFind(text, n, "e", from, NIL))
+    END;
+    FOR i := 0 TO LEN(pats) - 1 DO
+      FOR m := 0 TO 2 DO
+        okMapped := okMapped & (Rope.CountMapped(r, pats[i], mappers[m]) = NaiveCount(text, n, pats[i], mappers[m]))
+      END;
+      ok := ok & (Rope.Count(r, pats[i]) = NaiveCount(text, n, pats[i], NIL))
+    END
+  END
+END CompareSearches;
+
+PROCEDURE CheckSearchWalk;
+  VAR text, run: ARRAY 128 OF CHAR; n, i: LONGINT; r: Rope.Rope; pats: ARRAY 11, 24 OF CHAR; runPats: ARRAY 4, 24 OF CHAR;
+      ok, okSet, okMapped: BOOLEAN; set: Rope.CharSet;
+BEGIN
+  text := "The Quick BROWN Fox; the quICK brown fOX. THE end, The ENd, the End: thethe xyzabc  0123";
+  n := 0;
+  WHILE text[n] # 0X DO INC(n) END;
+  pats[0] := "the"; pats[1] := "quick brown"; pats[2] := "fox"; pats[3] := "the end";
+  pats[4] := "thethe"; pats[5] := "zzz"; pats[6] := "o"; pats[7] := "THE"; pats[8] := "xyz"; pats[9] := "abc";
+  pats[10] := "";
+  ok := TRUE; okSet := TRUE; okMapped := TRUE;
+  CompareSearches(text, n, pats, ok, okMapped, okSet);
+
+  (* A run of "a"s between two "b"s: going forward, "aab" is a candidate
+     at every "a" and fails only at the character after, so candidates
+     that cross into the next leaf and then fail are everywhere, and so
+     going backward for "baa".  Such a failed candidate is what shows up
+     a search that loses its place checking one. *)
+  run[0] := "b";
+  FOR i := 1 TO 80 DO run[i] := "a" END;
+  run[81] := "b"; run[82] := 0X;
+  runPats[0] := "aab"; runPats[1] := "baa"; runPats[2] := "aaaaaaaaaaaaaaaaaaaab"; runPats[3] := "baaaaaaaaaaaaaaaaaaaa";
+  CompareSearches(run, 82, runPats, ok, okMapped, okSet);
+
+  Check(ok, "Find, RFind, Count: every pattern and from, four tree shapes, agree with a naive search");
+  Check(okMapped, "FindMapped, RFindMapped, CountMapped: LowerChar and a swap mapper agree with a naive search");
+  Check(okSet, "IndexSet, RIndexSet, IndexChar, RIndexChar: every from, both tests, agree with a naive scan");
+  Rope.MakeCharSet("aeiou ", set);
+
+  r := Chunked(text, n, 17);
+  Check(Rope.FindMapped(r, "quick brown", 0, Rope.LowerChar) = 4, "FindMapped: case-insensitive with LowerChar");
+  Check(Rope.FindMapped(r, "THE", 0, Rope.LowerChar) = -1, "FindMapped: the pattern is not mapped");
+  Check(Rope.FindMapped(r, "xyz", 0, SwapMapper) = n - 9, "FindMapped: a swap mapper finds abc for xyz");
+  Check(Rope.FindMapped(r, "the", 1, NIL) = Rope.Find(r, "the", 1), "FindMapped: a NIL mapper is Find");
+  Check((Rope.Count(r, "the") = 4) & (Rope.CountMapped(r, "the", Rope.LowerChar) = 7), "Count and CountMapped");
+  Check(Rope.Count(r, "") = 0, "Count: the empty pattern never occurs");
+  Check((Rope.Count(NIL, "x") = 0) & (Rope.Find(NIL, "x", 0) = -1) & (Rope.IndexSet(NIL, set, TRUE, 0) = -1), "searches of NIL");
+
+  (* Twenty million characters: until the searches walked leaves, each
+     did a Fetch from the root per character, ~20 times slower. *)
+  r := Rope.Repeat(Rope.FromString("0123456789"), 2000000);
+  Check((Rope.Find(r, "0123x", 0) = -1) & (Rope.RFind(r, "9012", Rope.Length(r)) = Rope.Length(r) - 11),
+        "Find and RFind on a twenty-million-character rope");
+  Check(Rope.Count(r, "90") = 1999999, "Count on a twenty-million-character rope")
+END CheckSearchWalk;
+
+PROCEDURE CheckCharSetAndToken;
+  VAR r: Rope.Rope; set: Rope.CharSet; start, len: LONGINT;
+BEGIN
+  r := Rope.Cat(Rope.FromString("   alpha 12 bravo "), Rope.FromString("       charlie3456789   "));
+  Rope.MakeCharSet("0123456789", set);
+  Check((Rope.IndexSet(r, set, TRUE, 0) = 9) & (Rope.RIndexSet(r, set, TRUE, Rope.Length(r)) = 38), "IndexSet, RIndexSet");
+  Check(Rope.CountSet(r, set) = 9, "CountSet");
+  Check((Rope.IndexNonBlank(r, 0) = 3) & (Rope.RIndexNonBlank(r, 100) = 38) & (Rope.IndexNonBlank(r, 8) = 9),
+        "IndexNonBlank, RIndexNonBlank");
+  Check(Rope.IndexNonBlank(Rope.FromString("    "), 0) = -1, "IndexNonBlank: all blank");
+  Rope.FindToken(r, set, TRUE, 12, start, len);
+  Check((start = 32) & (len = 7) & StrEq(Rope.Substring(r, start, len), "3456789"), "FindToken: a digit run across a leaf boundary");
+  Rope.MakeCharSet(" ", set);
+  Rope.FindToken(r, set, FALSE, 0, start, len);
+  Check(StrEq(Rope.Substring(r, start, len), "alpha"), "FindToken: not in set (outside)");
+  Rope.MakeCharSet("xyz", set);
+  Rope.FindToken(r, set, TRUE, 5, start, len);
+  Check((start = 5) & (len = 0), "FindToken: none gives start = from, len = 0");
+  Rope.FindToken(r, set, TRUE, -3, start, len);
+  Check((start = 0) & (len = 0), "FindToken: a negative from is treated as 0")
+END CheckCharSetAndToken;
+
+PROCEDURE CheckReplace;
+  VAR r: Rope.Rope;
+BEGIN
+  r := Rope.Cat(Rope.FromString("Hello, "), Rope.FromString("World!"));
+  Check(StrEq(Rope.Replace(r, 7, 5, Rope.FromString("Oberon")), "Hello, Oberon!"), "Replace: a slice across the leaf boundary");
+  Check(StrEq(Rope.Replace(r, 5, 0, Rope.FromString(" there")), "Hello there, World!"), "Replace: len 0 inserts");
+  Check(StrEq(Rope.Replace(r, 7, 100, Rope.FromString("you")), "Hello, you"), "Replace: len past the end is clamped");
+  Check(StrEq(Rope.Replace(r, -5, 7, NIL), "World!"), "Replace: a negative pos is clamped, NIL by removes");
+  Check(StrEq(Rope.Replace(r, 99, 3, Rope.FromString("?")), "Hello, World!?"), "Replace: pos past the end appends");
+  Check(StrEq(Rope.ReplaceChar(r, 7, "w"), "Hello, world!") & StrEq(r, "Hello, World!"), "ReplaceChar; r itself unchanged");
+  Check(StrEq(Rope.ReplaceChar(r, 12, "?"), "Hello, World?"), "ReplaceChar: the last character")
+END CheckReplace;
+
+PROCEDURE CheckTranslate;
+  VAR r, t: Rope.Rope; m: Rope.Mapping;
+BEGIN
+  r := Rope.Cat(Rope.FromString("abc to xyz, "), Rope.FromString("0123456789"));
+  Check(Rope.MakeMapping("abcxyz", "xyzabc", m), "MakeMapping: valid");
+  t := Rope.Translate(r, m);
+  Check(StrEq(t, "xyz to abc, 0123456789") & (Rope.Depth(t) = Rope.Depth(r)), "Translate: characters mapped, tree shape kept");
+  Check(~Rope.MakeMapping("abc", "xy", m) & StrEq(Rope.Translate(r, m), "abc to xyz, 0123456789"),
+        "MakeMapping: different lengths fail, leaving the identity");
+  Check(~Rope.MakeMapping("aba", "xyz", m), "MakeMapping: a repeated from character fails");
+  Check(Rope.MakeMapping("0123456789", "##########", m) & StrEq(Rope.Translate(r, m), "abc to xyz, ##########"),
+        "Translate: many to one");
+  Check(Rope.Translate(NIL, m) = NIL, "Translate of NIL is NIL")
+END CheckTranslate;
+
+PROCEDURE CheckCompareStringAndNoCase;
+  VAR text: ARRAY 64 OF CHAR; prefix: ARRAY 64 OF CHAR; r, a, b: Rope.Rope; i, j, n: LONGINT; ok, okNoCase: BOOLEAN;
+BEGIN
+  text := "The Quick BROWN fox Jumps over THE lazy dog";
+  n := 0;
+  WHILE text[n] # 0X DO INC(n) END;
+  r := Chunked(text, n, 17);
+  ok := TRUE; okNoCase := TRUE;
+  FOR i := 0 TO n DO
+    FOR j := 0 TO i - 1 DO prefix[j] := text[j] END;
+    prefix[i] := 0X;
+    ok := ok & (Rope.CompareString(r, prefix) = Rope.Compare(r, Rope.FromString(prefix)))
+             & (Rope.CompareString(Chunked(text, i, 17), text) = Rope.Compare(Chunked(text, i, 17), r));
+    a := Chunked(text, i, 17);
+    FOR j := 0 TO n DO
+      b := Rope.LowercaseAscii(Chunked(text, j, 23));
+      okNoCase := okNoCase
+        & (Rope.CompareNoCase(a, b) = Rope.Compare(Rope.LowercaseAscii(a), b))
+        & (Rope.CompareNoCase(b, a) = Rope.Compare(b, Rope.LowercaseAscii(a)))
+        & (Rope.EqualNoCase(a, b) = (i = j))
+    END
+  END;
+  Check(ok, "CompareString: every prefix, both ways, agrees with Compare");
+  Check(okNoCase, "CompareNoCase, EqualNoCase: every pair of prefixes agrees with Compare on LowercaseAscii");
+  Check(Rope.EqualString(r, text) & ~Rope.EqualString(r, "The") & Rope.EqualString(NIL, ""), "EqualString");
+  Check(~Rope.Equal(r, Rope.LowercaseAscii(r)) & Rope.EqualNoCase(r, Rope.UppercaseAscii(r)), "EqualNoCase: across case")
+END CheckCompareStringAndNoCase;
+
+PROCEDURE CheckHash;
+  VAR text: ARRAY 64 OF CHAR; n: LONGINT;
+BEGIN
+  (* The same values as GNAT's Ada.Strings.Hash and
+     Ada.Strings.Hash_Case_Insensitive, as printed by the Ada Ropes
+     package's rope_tool hash and hashci. *)
+  Check(Rope.Hash(Rope.FromString("Hello, World")) = 3446766348, "Hash: GNAT's Ada.Strings.Hash value");
+  Check(Rope.HashNoCase(Rope.FromString("hELLO, wORLD")) = 4000297740, "HashNoCase: GNAT's Hash_Case_Insensitive value");
+  text := "The Quick BROWN fox Jumps over THE lazy dog";
+  n := 0;
+  WHILE text[n] # 0X DO INC(n) END;
+  Check(Rope.Hash(Chunked(text, n, 17)) = Rope.Hash(Chunked(text, n, 23)), "Hash: the same whatever the leaves");
+  Check(Rope.Hash(Chunked(text, n, 17)) # Rope.Hash(Rope.LowercaseAscii(Chunked(text, n, 17))), "Hash: distinguishes case");
+  Check(Rope.HashNoCase(Chunked(text, n, 17)) = Rope.HashNoCase(Rope.UppercaseAscii(Chunked(text, n, 23))),
+        "HashNoCase: the same for any case");
+  Check((Rope.Hash(NIL) = 0) & (Rope.HashNoCase(NIL) = 0), "Hash of NIL is 0")
+END CheckHash;
+
 PROCEDURE Summary;
 BEGIN
   Out.Ln;
@@ -899,5 +1203,11 @@ BEGIN
   CheckReadWriteFile;
   CheckBlitAcrossLeaves;
   CheckEscapeAcrossLeaves;
+  CheckSearchWalk;
+  CheckCharSetAndToken;
+  CheckReplace;
+  CheckTranslate;
+  CheckCompareStringAndNoCase;
+  CheckHash;
   Summary
 END RopeTest.

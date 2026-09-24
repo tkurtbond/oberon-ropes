@@ -32,6 +32,17 @@ MODULE Rope;
    package (its Process_Chunks and Ropes.Text_IO), as was the linear
    Compare.
 
+   So were, later, the operations the Ada port added to match
+   Ada.Strings.Unbounded -- each translated into this module's own
+   conventions (0-based positions, clamping rather than exceptions, -1
+   for "not found", procedure types rather than generics): searches that
+   walk leaves instead of a Fetch per character, so linear (Find, RFind,
+   IndexChar, RIndexChar, and Split with them); CharSet with IndexSet,
+   RIndexSet, CountSet and FindToken; IndexNonBlank/RIndexNonBlank;
+   Count; Replace and ReplaceChar; Mapping with Translate; FindMapped,
+   RFindMapped and CountMapped; CompareString/EqualString;
+   CompareNoCase, EqualNoCase and HashNoCase; and Hash.
+
    This is voc-only for now: it is not built by pocGNUmakefile. *)
 
 IMPORT Files, In, Out;
@@ -108,15 +119,37 @@ TYPE
      Returning FALSE stops the iteration early. *)
   ChunkVisitor* = PROCEDURE (VAR chunk: ARRAY OF CHAR): BOOLEAN;
 
-  (* A left-to-right walk over a rope's leaves, one leaf per NextLeaf
-     call, in amortized O(1) per leaf -- used by Compare.  A pre-order
-     walk with an explicit stack of subtrees still to visit (right pushed
-     before left, so left comes off first).  The stack never holds more
+  (* A walk over a rope's leaves, one leaf per NextLeaf call, in
+     amortized O(1) per leaf -- used by Compare, Hash and every search.
+     Left to right if forward, else right to left.  A pre-order walk with
+     an explicit stack of subtrees still to visit (the far child pushed
+     first, so the near one comes off first).  The stack never holds more
      than depth + 1 entries, and every Concat's depth is set by
-     NewConcat, so r.depth + 1 always suffices. *)
+     NewConcat, so r.depth + 1 always suffices.  The stack is a pointer,
+     so assigning one LeafWalk to another shares it: CopyWalk makes an
+     independent copy. *)
   LeafWalk = RECORD
     stack: POINTER TO ARRAY OF Rope;
-    top: LONGINT
+    top: LONGINT;
+    forward: BOOLEAN
+  END;
+
+  (* A set of characters, for IndexSet, RIndexSet, CountSet and
+     FindToken: has[ORD(ch)] is whether ch is in it.  Build one with
+     MakeCharSet, or set has directly.  Ada's Ada.Strings.Maps.
+     Character_Set, ported back from the Ada Ropes package; a record
+     rather than an Oberon SET, which holds only 0 .. MAX(SET) (31 in
+     voc). *)
+  CharSet* = RECORD
+    has*: ARRAY 256 OF BOOLEAN
+  END;
+
+  (* A character-to-character mapping, for Translate: to[ORD(ch)] is what
+     ch maps to.  Build one with MakeMapping or IdentityMapping.  Ada's
+     Ada.Strings.Maps.Character_Mapping; its function form is Mapper,
+     above. *)
+  Mapping* = RECORD
+    to*: ARRAY 256 OF CHAR
   END;
 
   (* The result of SplitArray: one entry per piece, in order. *)
@@ -183,6 +216,23 @@ BEGIN
   WHILE (len < LEN(s)) & (s[len] # 0X) DO INC(len) END;
   RETURN len
 END StrLen;
+
+(* ch uppercased if it is an ASCII lowercase letter, lowercased if an
+   ASCII uppercase one; any other character unchanged.  Mappers, as
+   UppercaseAscii and LowercaseAscii pass them to Map; exported (since
+   the Ada Ropes package's Mapping searches were ported back) so that a
+   case-insensitive FindMapped needs no mapper of its own. *)
+PROCEDURE UpperChar*(ch: CHAR): CHAR;
+BEGIN
+  IF (ch >= "a") & (ch <= "z") THEN RETURN CAP(ch) END;
+  RETURN ch
+END UpperChar;
+
+PROCEDURE LowerChar*(ch: CHAR): CHAR;
+BEGIN
+  IF (ch >= "A") & (ch <= "Z") THEN RETURN CHR(ORD(ch) + 32) END;
+  RETURN ch
+END LowerChar;
 
 (* A new leaf copying src[start .. start + len - 1].  len must be > 0. *)
 PROCEDURE NewLeaf(src: ARRAY OF CHAR; start, len: LONGINT): Leaf;
@@ -622,53 +672,75 @@ BEGIN
   RETURN Cat(Cat(left, new), right)
 END Overwrite;
 
-(* --- Search char --- *)
-
-(* The index of the first occurrence of ch at or after from, or -1. *)
-PROCEDURE IndexChar*(r: Rope; ch: CHAR; from: LONGINT): LONGINT;
-  VAR i, len: LONGINT;
+(* r with the len characters at pos replaced by by: Substring(r, 0, pos)
+   followed by by followed by what Remove(r, pos, len) leaves after pos.
+   pos and len are clamped as Remove clamps them, so a len running past
+   the end replaces through the end, and len <= 0 inserts by before pos.
+   Ported back from the Ada Ropes package (Ada.Strings.Unbounded's
+   Replace_Slice, which takes a Low and High and raises Index_Error for a
+   Low past the end rather than clamping). *)
+PROCEDURE Replace*(r: Rope; pos, len: LONGINT; by: Rope): Rope;
+  VAR left, right: Rope;
 BEGIN
-  len := Length(r);
-  IF from < 0 THEN from := 0 END;
-  i := from;
-  WHILE i < len DO
-    IF Fetch(r, i) = ch THEN RETURN i END;
-    INC(i)
-  END;
-  RETURN -1
-END IndexChar;
+  IF pos < 0 THEN pos := 0 END;
+  IF pos > Length(r) THEN pos := Length(r) END;
+  IF len < 0 THEN len := 0 END;
+  IF len > Length(r) - pos THEN len := Length(r) - pos END;
+  left := Substring(r, 0, pos);
+  right := Substring(r, pos + len, Length(r) - pos - len);
+  RETURN Cat(Cat(left, by), right)
+END Replace;
 
-(* The index of the last occurrence of ch at or before "before", or -1. *)
-PROCEDURE RIndexChar*(r: Rope; ch: CHAR; before: LONGINT): LONGINT;
-  VAR i, len: LONGINT;
+(* r with the character at pos replaced by ch.  Precondition: 0 <= pos <
+   Length(r) -- traps (HALT) if violated, as Fetch does, rather than
+   clamping: there is no character to replace outside r, and a clamped
+   pos would silently replace a different one.  Ported back from the Ada
+   Ropes package (Ada.Strings.Unbounded's Replace_Element). *)
+PROCEDURE ReplaceChar*(r: Rope; pos: LONGINT; ch: CHAR): Rope;
 BEGIN
-  len := Length(r);
-  IF before > len - 1 THEN before := len - 1 END;
-  i := before;
-  WHILE i >= 0 DO
-    IF Fetch(r, i) = ch THEN RETURN i END;
-    DEC(i)
-  END;
-  RETURN -1
-END RIndexChar;
+  IF (pos < 0) OR (pos >= Length(r)) THEN HALT(1) END;
+  RETURN Cat(Cat(Substring(r, 0, pos), FromChar(ch)), Substring(r, pos + 1, Length(r) - pos - 1))
+END ReplaceChar;
 
-(* Whether ch occurs in r at or after from. *)
-PROCEDURE Contains*(r: Rope; ch: CHAR; from: LONGINT): BOOLEAN;
-BEGIN
-  RETURN IndexChar(r, ch, from) >= 0
-END Contains;
-
-(* --- Comparison, search, iteration --- *)
+(* --- Leaf walks --- *)
 
 (* Precondition: r # NIL. *)
 PROCEDURE StartWalk(VAR w: LeafWalk; r: Rope);
 BEGIN
   NEW(w.stack, r.depth + 1);
   w.stack[0] := r;
-  w.top := 1
+  w.top := 1;
+  w.forward := TRUE
 END StartWalk;
 
-(* Precondition: the walk has a leaf left to return. *)
+(* Starts a walk in direction forward from r's character at pos: leaf is
+   the leaf holding it, at leaf.chars[off], and NextLeaf then gives the
+   leaves after (forward) or before (backward) leaf, in order.  One
+   descent from the root, pushing the subtree on the far side of each
+   step, so O(depth(r)).  Precondition: r # NIL, 0 <= pos < r.length. *)
+PROCEDURE StartWalkAt(VAR w: LeafWalk; r: Rope; pos: LONGINT; forward: BOOLEAN; VAR leaf: Leaf; VAR off: LONGINT);
+  VAR n: Rope; c: Concat;
+BEGIN
+  NEW(w.stack, r.depth + 1);
+  w.top := 0;
+  w.forward := forward;
+  n := r;
+  WHILE n IS Concat DO
+    c := n(Concat);
+    IF pos < c.left.length THEN
+      IF forward THEN w.stack[w.top] := c.right; INC(w.top) END;
+      n := c.left
+    ELSE
+      IF ~forward THEN w.stack[w.top] := c.left; INC(w.top) END;
+      DEC(pos, c.left.length);
+      n := c.right
+    END
+  END;
+  leaf := n(Leaf);
+  off := pos
+END StartWalkAt;
+
+(* Precondition: the walk has a leaf left to return (w.top > 0). *)
 PROCEDURE NextLeaf(VAR w: LeafWalk): Leaf;
   VAR n: Rope; c: Concat;
 BEGIN
@@ -677,19 +749,38 @@ BEGIN
     n := w.stack[w.top];
     IF n IS Leaf THEN RETURN n(Leaf) END;
     c := n(Concat);
-    w.stack[w.top] := c.right;
-    w.stack[w.top + 1] := c.left;
+    IF w.forward THEN
+      w.stack[w.top] := c.right;
+      w.stack[w.top + 1] := c.left
+    ELSE
+      w.stack[w.top] := c.left;
+      w.stack[w.top + 1] := c.right
+    END;
     INC(w.top, 2)
   END
 END NextLeaf;
 
-(* <0, 0 or >0, like strcmp: lexicographic by character, then by length.
-   Linear in the common prefix: walks both ropes' leaves in step, reading
-   each leaf's characters directly, instead of a Fetch from the root per
+(* v := an independent copy of w, with its own stack: a plain assignment
+   would share w's. *)
+PROCEDURE CopyWalk(VAR w, v: LeafWalk);
+  VAR i: LONGINT;
+BEGIN
+  NEW(v.stack, LEN(w.stack^));
+  FOR i := 0 TO w.top - 1 DO v.stack[i] := w.stack[i] END;
+  v.top := w.top;
+  v.forward := w.forward
+END CopyWalk;
+
+(* --- Comparison and hashing --- *)
+
+(* <0, 0 or >0, like strcmp: lexicographic by character, then by length,
+   with each character passed through LowerChar first if fold.  Linear
+   in the common prefix: walks both ropes' leaves in step, reading each
+   leaf's characters directly, instead of a Fetch from the root per
    character (O(n log n), ~7 s on two 20-million-character ropes in the
    Ada port this was fixed in first).  Two ropes sharing a root compare
    equal in O(1). *)
-PROCEDURE Compare*(a, b: Rope): INTEGER;
+PROCEDURE CompareFolded(a, b: Rope; fold: BOOLEAN): INTEGER;
   VAR wa, wb: LeafWalk; la, lb: Leaf; pa, pb, remaining: LONGINT; ca, cb: CHAR;
 BEGIN
   IF a = b THEN RETURN 0 END;
@@ -704,6 +795,7 @@ BEGIN
       IF pb = lb.length THEN lb := NextLeaf(wb); pb := 0 END;
       ca := la.chars[pa];
       cb := lb.chars[pb];
+      IF fold THEN ca := LowerChar(ca); cb := LowerChar(cb) END;
       IF ca < cb THEN RETURN -1 END;
       IF ca > cb THEN RETURN 1 END;
       INC(pa); INC(pb); DEC(remaining)
@@ -712,6 +804,11 @@ BEGIN
   IF Length(a) < Length(b) THEN RETURN -1 END;
   IF Length(a) > Length(b) THEN RETURN 1 END;
   RETURN 0
+END CompareFolded;
+
+PROCEDURE Compare*(a, b: Rope): INTEGER;
+BEGIN
+  RETURN CompareFolded(a, b, FALSE)
 END Compare;
 
 PROCEDURE Equal*(a, b: Rope): BOOLEAN;
@@ -719,10 +816,333 @@ BEGIN
   RETURN Compare(a, b) = 0
 END Equal;
 
-(* The index of the first occurrence of pattern at or after from, or -1.
-   The empty pattern matches at from (clamped into [0, Length(r)]). *)
-PROCEDURE Find*(r: Rope; pattern: ARRAY OF CHAR; from: LONGINT): LONGINT;
-  VAR patLen, rLen, i, j: LONGINT; match: BOOLEAN;
+(* Compare, ignoring the case of ASCII letters (each character passed
+   through LowerChar, as LowercaseAscii does), and Equal likewise.
+   Ported back from the Ada Ropes package (its Less_Case_Insensitive and
+   Equal_Case_Insensitive, Ada.Strings.Unbounded's), which folds Latin-1
+   letters too: this module's case operations are ASCII-only. *)
+PROCEDURE CompareNoCase*(a, b: Rope): INTEGER;
+BEGIN
+  RETURN CompareFolded(a, b, TRUE)
+END CompareNoCase;
+
+PROCEDURE EqualNoCase*(a, b: Rope): BOOLEAN;
+BEGIN
+  RETURN (Length(a) = Length(b)) & (CompareNoCase(a, b) = 0)
+END EqualNoCase;
+
+(* Compare, with s -- its characters up to its 0X, or all of it if it has
+   none -- in place of a rope, without first copying s into one: r's
+   leaves are compared with s where they lie.  Ported back from the Ada
+   Ropes package (its Rope/String comparison operators). *)
+PROCEDURE CompareString*(r: Rope; s: ARRAY OF CHAR): INTEGER;
+  VAR w: LeafWalk; leaf: Leaf; p, k, sLen, remaining: LONGINT; c: CHAR;
+BEGIN
+  sLen := StrLen(s);
+  remaining := Length(r);
+  IF sLen < remaining THEN remaining := sLen END;
+  IF remaining > 0 THEN
+    StartWalk(w, r);
+    leaf := NextLeaf(w);
+    p := 0; k := 0;
+    WHILE remaining > 0 DO
+      IF p = leaf.length THEN leaf := NextLeaf(w); p := 0 END;
+      c := leaf.chars[p];
+      IF c < s[k] THEN RETURN -1 END;
+      IF c > s[k] THEN RETURN 1 END;
+      INC(p); INC(k); DEC(remaining)
+    END
+  END;
+  IF Length(r) < sLen THEN RETURN -1 END;
+  IF Length(r) > sLen THEN RETURN 1 END;
+  RETURN 0
+END CompareString;
+
+PROCEDURE EqualString*(r: Rope; s: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  RETURN CompareString(r, s) = 0
+END EqualString;
+
+PROCEDURE HashFolded(r: Rope; fold: BOOLEAN): HUGEINT;
+  VAR w: LeafWalk; leaf: Leaf; h: HUGEINT; i: LONGINT; c: CHAR;
+BEGIN
+  h := 0;
+  IF r # NIL THEN
+    StartWalk(w, r);
+    REPEAT
+      leaf := NextLeaf(w);
+      FOR i := 0 TO leaf.length - 1 DO
+        c := leaf.chars[i];
+        IF fold THEN c := LowerChar(c) END;
+        h := (ORD(c) + h * 64 + h * 65536 - h) MOD 100000000H
+      END
+    UNTIL w.top = 0
+  END;
+  RETURN h
+END HashFolded;
+
+(* A hash of r's characters, in 0 .. 2^32 - 1: equal ropes hash alike,
+   whatever their leaves.  The sdbm recurrence h := ch + h * 2^6 +
+   h * 2^16 - h (mod 2^32) -- GNAT's System.String_Hash, so this is
+   exactly GNAT's Ada.Strings.Hash of the same characters, as the Ada
+   Ropes package's Hash (ported back from there) is.  A HUGEINT, since
+   voc's LONGINT is 32 bits and signed; computed in HUGEINT too, where
+   h * 2^16 < 2^48 can't overflow.  O(Length(r)). *)
+PROCEDURE Hash*(r: Rope): HUGEINT;
+BEGIN
+  RETURN HashFolded(r, FALSE)
+END Hash;
+
+(* Hash, ignoring the case of ASCII letters: ropes EqualNoCase to each
+   other hash alike. *)
+PROCEDURE HashNoCase*(r: Rope): HUGEINT;
+BEGIN
+  RETURN HashFolded(r, TRUE)
+END HashNoCase;
+
+(* --- Search ---
+
+   Every search walks r's leaves in its own direction from where it
+   starts (StartWalkAt), reading each leaf's characters in place:
+   O(depth) to reach the start, then O(1) per character -- not a Fetch
+   from the root per character, which made every search O(n log n) and
+   a pattern search O(n m log n) until these were ported back from the
+   Ada Ropes package, where the same change made searches 25 to 130
+   times faster.  A pattern search tests each candidate's first
+   character (last, backward) before comparing the rest, continuing into
+   the following leaves on a copy of the walk when a candidate crosses
+   one: O(n m) at worst, and close to O(n) when the pattern's first
+   character is uncommon. *)
+
+(* A set holding exactly the characters of chars, up to its 0X (or all of
+   it if it has none) -- so never 0X itself; set has[0] directly for
+   that. *)
+PROCEDURE MakeCharSet*(chars: ARRAY OF CHAR; VAR set: CharSet);
+  VAR i, len: LONGINT;
+BEGIN
+  FOR i := 0 TO 255 DO set.has[i] := FALSE END;
+  len := StrLen(chars);
+  FOR i := 0 TO len - 1 DO set.has[ORD(chars[i])] := TRUE END
+END MakeCharSet;
+
+(* The index of the first (forward: at or after from) or last (backward:
+   at or before from) character of r that is in set if inside, or not in
+   it if ~inside; -1 if none.  Precondition: r # NIL, 0 <= from <
+   r.length. *)
+PROCEDURE ScanSet(r: Rope; VAR set: CharSet; inside: BOOLEAN; from: LONGINT; forward: BOOLEAN): LONGINT;
+  VAR w: LeafWalk; leaf: Leaf; off, base, i: LONGINT;
+BEGIN
+  StartWalkAt(w, r, from, forward, leaf, off);
+  base := from - off;  (* leaf.chars[i] is r's character base + i. *)
+  IF forward THEN
+    LOOP
+      FOR i := off TO leaf.length - 1 DO
+        IF set.has[ORD(leaf.chars[i])] = inside THEN RETURN base + i END
+      END;
+      IF w.top = 0 THEN EXIT END;
+      INC(base, leaf.length);
+      leaf := NextLeaf(w);
+      off := 0
+    END
+  ELSE
+    LOOP
+      FOR i := off TO 0 BY -1 DO
+        IF set.has[ORD(leaf.chars[i])] = inside THEN RETURN base + i END
+      END;
+      IF w.top = 0 THEN EXIT END;
+      leaf := NextLeaf(w);
+      DEC(base, leaf.length);
+      off := leaf.length - 1
+    END
+  END;
+  RETURN -1
+END ScanSet;
+
+(* The index of the first character of r at or after from that is in set
+   (inside) or not in set (~inside), or -1.  A negative from is treated
+   as 0, as IndexChar treats it.  VAR only so that set is not copied; it
+   is not changed.  Ported back from the Ada Ropes package (its
+   Character_Set Index, Ada.Strings.Unbounded's). *)
+PROCEDURE IndexSet*(r: Rope; VAR set: CharSet; inside: BOOLEAN; from: LONGINT): LONGINT;
+BEGIN
+  IF from < 0 THEN from := 0 END;
+  IF from >= Length(r) THEN RETURN -1 END;
+  RETURN ScanSet(r, set, inside, from, TRUE)
+END IndexSet;
+
+(* The index of the last character of r at or before "before" that is in
+   set (inside) or not (~inside), or -1.  A "before" past the end is
+   treated as the last character, as RIndexChar treats it. *)
+PROCEDURE RIndexSet*(r: Rope; VAR set: CharSet; inside: BOOLEAN; before: LONGINT): LONGINT;
+BEGIN
+  IF before > Length(r) - 1 THEN before := Length(r) - 1 END;
+  IF before < 0 THEN RETURN -1 END;
+  RETURN ScanSet(r, set, inside, before, FALSE)
+END RIndexSet;
+
+(* The index of the first occurrence of ch at or after from, or -1. *)
+PROCEDURE IndexChar*(r: Rope; ch: CHAR; from: LONGINT): LONGINT;
+  VAR set: CharSet;
+BEGIN
+  MakeCharSet("", set);
+  set.has[ORD(ch)] := TRUE;
+  RETURN IndexSet(r, set, TRUE, from)
+END IndexChar;
+
+(* The index of the last occurrence of ch at or before "before", or -1. *)
+PROCEDURE RIndexChar*(r: Rope; ch: CHAR; before: LONGINT): LONGINT;
+  VAR set: CharSet;
+BEGIN
+  MakeCharSet("", set);
+  set.has[ORD(ch)] := TRUE;
+  RETURN RIndexSet(r, set, TRUE, before)
+END RIndexChar;
+
+(* Whether ch occurs in r at or after from. *)
+PROCEDURE Contains*(r: Rope; ch: CHAR; from: LONGINT): BOOLEAN;
+BEGIN
+  RETURN IndexChar(r, ch, from) >= 0
+END Contains;
+
+(* The index of the first character of r at or after from that is not a
+   space, or -1; RIndexNonBlank, the last at or before "before".  Only
+   " " is blank, not tab or line feed -- Ada.Strings.Unbounded's
+   Index_Non_Blank, ported back from the Ada Ropes package. *)
+PROCEDURE IndexNonBlank*(r: Rope; from: LONGINT): LONGINT;
+  VAR blank: CharSet;
+BEGIN
+  MakeCharSet(" ", blank);
+  RETURN IndexSet(r, blank, FALSE, from)
+END IndexNonBlank;
+
+PROCEDURE RIndexNonBlank*(r: Rope; before: LONGINT): LONGINT;
+  VAR blank: CharSet;
+BEGIN
+  MakeCharSet(" ", blank);
+  RETURN RIndexSet(r, blank, FALSE, before)
+END RIndexNonBlank;
+
+(* The first token of r at or after from: start is the index of the first
+   character there that is in set (inside) or not in set (~inside), and
+   len the length of the run of such characters beginning there, so
+   Substring(r, start, len) is the token.  If there is none, start is
+   from (0 if from is negative) and len is 0.  Ada.Strings.Unbounded's
+   Find_Token, ported back from the Ada Ropes package, as a start and a
+   length like Substring's rather than Ada's First and Last. *)
+PROCEDURE FindToken*(r: Rope; VAR set: CharSet; inside: BOOLEAN; from: LONGINT; VAR start, len: LONGINT);
+  VAR after: LONGINT;
+BEGIN
+  IF from < 0 THEN from := 0 END;
+  start := IndexSet(r, set, inside, from);
+  IF start < 0 THEN
+    start := from;
+    len := 0
+  ELSE
+    after := IndexSet(r, set, ~inside, start);
+    IF after < 0 THEN len := Length(r) - start ELSE len := after - start END
+  END
+END FindToken;
+
+(* Whether pattern[0 .. patLen-1] occurs starting at leaf.chars[i] (going
+   forward) or ending there (backward), running on into the leaves after
+   (before) leaf as needed -- which exist: the caller only asks when the
+   occurrence would lie within the rope.  Each character of the rope
+   passes through f first, unless f is NIL.  Continues on a copy of w,
+   made only if the occurrence leaves leaf, so the caller's walk keeps
+   its place. *)
+PROCEDURE MatchesAt(VAR w: LeafWalk; leaf: Leaf; i: LONGINT; VAR pattern: ARRAY OF CHAR; patLen: LONGINT;
+                    forward: BOOLEAN; f: Mapper): BOOLEAN;
+  VAR v: LeafWalk; k: LONGINT; c: CHAR; copied: BOOLEAN;
+BEGIN
+  copied := FALSE;
+  IF forward THEN
+    k := 0;
+    LOOP
+      WHILE (k < patLen) & (i < leaf.length) DO
+        c := leaf.chars[i];
+        IF f # NIL THEN c := f(c) END;
+        IF c # pattern[k] THEN RETURN FALSE END;
+        INC(k); INC(i)
+      END;
+      IF k = patLen THEN RETURN TRUE END;
+      IF ~copied THEN CopyWalk(w, v); copied := TRUE END;
+      leaf := NextLeaf(v);
+      i := 0
+    END
+  ELSE
+    k := patLen - 1;
+    LOOP
+      WHILE (k >= 0) & (i >= 0) DO
+        c := leaf.chars[i];
+        IF f # NIL THEN c := f(c) END;
+        IF c # pattern[k] THEN RETURN FALSE END;
+        DEC(k); DEC(i)
+      END;
+      IF k < 0 THEN RETURN TRUE END;
+      IF ~copied THEN CopyWalk(w, v); copied := TRUE END;
+      leaf := NextLeaf(v);
+      i := leaf.length - 1
+    END
+  END
+END MatchesAt;
+
+(* The start of the first occurrence of pattern[0 .. patLen-1] in r
+   starting at or after from (forward), or of the last one starting at or
+   before from (backward), or -1; each character of r passes through f
+   first, unless f is NIL -- pattern itself never does.  Precondition:
+   r # NIL, patLen > 0, 0 <= from <= r.length - patLen. *)
+PROCEDURE FindCore(r: Rope; VAR pattern: ARRAY OF CHAR; patLen, from: LONGINT; forward: BOOLEAN; f: Mapper): LONGINT;
+  VAR w: LeafWalk; leaf: Leaf; off, base, i, bound, lastStart, lastEnd: LONGINT; c, first, last: CHAR;
+BEGIN
+  IF forward THEN
+    (* Occurrences can start at from .. lastStart. *)
+    lastStart := r.length - patLen;
+    first := pattern[0];
+    StartWalkAt(w, r, from, TRUE, leaf, off);
+    base := from - off;
+    LOOP
+      bound := leaf.length - 1;
+      IF base + bound > lastStart THEN bound := lastStart - base END;
+      FOR i := off TO bound DO
+        c := leaf.chars[i];
+        IF f # NIL THEN c := f(c) END;
+        IF (c = first) & MatchesAt(w, leaf, i, pattern, patLen, TRUE, f) THEN RETURN base + i END
+      END;
+      IF base + bound = lastStart THEN EXIT END;
+      INC(base, leaf.length);
+      leaf := NextLeaf(w);
+      off := 0
+    END
+  ELSE
+    (* Occurrences can end at patLen - 1 .. lastEnd. *)
+    lastEnd := from + patLen - 1;
+    last := pattern[patLen - 1];
+    StartWalkAt(w, r, lastEnd, FALSE, leaf, off);
+    base := lastEnd - off;
+    LOOP
+      bound := 0;
+      IF base < patLen - 1 THEN bound := patLen - 1 - base END;
+      FOR i := off TO bound BY -1 DO
+        c := leaf.chars[i];
+        IF f # NIL THEN c := f(c) END;
+        IF (c = last) & MatchesAt(w, leaf, i, pattern, patLen, FALSE, f) THEN RETURN base + i - patLen + 1 END
+      END;
+      IF base + bound = patLen - 1 THEN EXIT END;
+      leaf := NextLeaf(w);
+      DEC(base, leaf.length);
+      off := leaf.length - 1
+    END
+  END;
+  RETURN -1
+END FindCore;
+
+(* Find, with each character of r passed through f before it is compared
+   with pattern's -- pattern itself is not mapped, so a case-insensitive
+   search passes LowerChar and a lower-case pattern.  A NIL f compares
+   unmapped, as Find does.  Ported back from the Ada Ropes package (the
+   Mapping parameter of its Index, Ada.Strings.Unbounded's). *)
+PROCEDURE FindMapped*(r: Rope; pattern: ARRAY OF CHAR; from: LONGINT; f: Mapper): LONGINT;
+  VAR patLen, rLen: LONGINT;
 BEGIN
   patLen := StrLen(pattern);
   rLen := Length(r);
@@ -731,27 +1151,21 @@ BEGIN
     IF from > rLen THEN RETURN -1 END;
     RETURN from
   END;
-  i := from;
-  WHILE i + patLen <= rLen DO
-    match := TRUE;
-    j := 0;
-    WHILE match & (j < patLen) DO
-      IF Fetch(r, i + j) # pattern[j] THEN match := FALSE END;
-      INC(j)
-    END;
-    IF match THEN RETURN i END;
-    INC(i)
-  END;
-  RETURN -1
+  IF from > rLen - patLen THEN RETURN -1 END;
+  RETURN FindCore(r, pattern, patLen, from, TRUE, f)
+END FindMapped;
+
+(* The index of the first occurrence of pattern at or after from, or -1.
+   The empty pattern matches at from (clamped into [0, Length(r)]). *)
+PROCEDURE Find*(r: Rope; pattern: ARRAY OF CHAR; from: LONGINT): LONGINT;
+BEGIN
+  RETURN FindMapped(r, pattern, from, NIL)
 END Find;
 
-(* The index of the last occurrence of pattern starting at or before
-   "before", or -1.  RFind(r, pattern, Length(r)) searches the whole
-   rope, mirroring how Find(r, pattern, 0) does.  The empty pattern
-   matches at "before" itself (clamped into [0, Length(r)]), mirroring
-   Find's empty-pattern convention. *)
-PROCEDURE RFind*(r: Rope; pattern: ARRAY OF CHAR; before: LONGINT): LONGINT;
-  VAR patLen, rLen, i, j: LONGINT; match: BOOLEAN;
+(* RFind, with each character of r passed through f first, as FindMapped
+   does for Find. *)
+PROCEDURE RFindMapped*(r: Rope; pattern: ARRAY OF CHAR; before: LONGINT; f: Mapper): LONGINT;
+  VAR patLen, rLen: LONGINT;
 BEGIN
   patLen := StrLen(pattern);
   rLen := Length(r);
@@ -762,19 +1176,64 @@ BEGIN
   END;
   IF before > rLen - patLen THEN before := rLen - patLen END;
   IF before < 0 THEN RETURN -1 END;
-  i := before;
-  WHILE i >= 0 DO
-    match := TRUE;
-    j := 0;
-    WHILE match & (j < patLen) DO
-      IF Fetch(r, i + j) # pattern[j] THEN match := FALSE END;
-      INC(j)
-    END;
-    IF match THEN RETURN i END;
-    DEC(i)
-  END;
-  RETURN -1
+  RETURN FindCore(r, pattern, patLen, before, FALSE, f)
+END RFindMapped;
+
+(* The index of the last occurrence of pattern starting at or before
+   "before", or -1.  RFind(r, pattern, Length(r)) searches the whole
+   rope, mirroring how Find(r, pattern, 0) does.  The empty pattern
+   matches at "before" itself (clamped into [0, Length(r)]), mirroring
+   Find's empty-pattern convention. *)
+PROCEDURE RFind*(r: Rope; pattern: ARRAY OF CHAR; before: LONGINT): LONGINT;
+BEGIN
+  RETURN RFindMapped(r, pattern, before, NIL)
 END RFind;
+
+(* Count, with each character of r passed through f first, as FindMapped
+   does for Find. *)
+PROCEDURE CountMapped*(r: Rope; pattern: ARRAY OF CHAR; f: Mapper): LONGINT;
+  VAR patLen, from, pos, n: LONGINT;
+BEGIN
+  patLen := StrLen(pattern);
+  n := 0;
+  IF patLen = 0 THEN RETURN 0 END;
+  from := 0;
+  WHILE from <= Length(r) - patLen DO
+    pos := FindCore(r, pattern, patLen, from, TRUE, f);
+    IF pos < 0 THEN RETURN n END;
+    INC(n);
+    from := pos + patLen
+  END;
+  RETURN n
+END CountMapped;
+
+(* The number of non-overlapping occurrences of pattern in r, counted left
+   to right, each search starting just after the previous match.  0 for
+   the empty pattern, which never occurs -- the same convention as
+   Split's, where an empty separator never splits.  Ported back from the
+   Ada Ropes package (Ada.Strings.Unbounded's Count, which raises
+   Pattern_Error for an empty pattern instead). *)
+PROCEDURE Count*(r: Rope; pattern: ARRAY OF CHAR): LONGINT;
+BEGIN
+  RETURN CountMapped(r, pattern, NIL)
+END Count;
+
+(* The number of characters of r that are in set.  Linear in Length(r). *)
+PROCEDURE CountSet*(r: Rope; VAR set: CharSet): LONGINT;
+  VAR w: LeafWalk; leaf: Leaf; i, n: LONGINT;
+BEGIN
+  n := 0;
+  IF r # NIL THEN
+    StartWalk(w, r);
+    REPEAT
+      leaf := NextLeaf(w);
+      FOR i := 0 TO leaf.length - 1 DO
+        IF set.has[ORD(leaf.chars[i])] THEN INC(n) END
+      END
+    UNTIL w.top = 0
+  END;
+  RETURN n
+END CountSet;
 
 (* Whether pattern occurs in r at or after from -- a thin wrapper over
    Find, the same relationship Contains above already has to IndexChar,
@@ -788,6 +1247,8 @@ PROCEDURE ContainsPattern*(r: Rope; pattern: ARRAY OF CHAR; from: LONGINT): BOOL
 BEGIN
   RETURN Find(r, pattern, from) >= 0
 END ContainsPattern;
+
+(* --- Iteration --- *)
 
 (* Returns FALSE if visit asked to stop partway through. *)
 PROCEDURE IterateHelper(r: Rope; visit: Visitor): BOOLEAN;
@@ -1112,19 +1573,62 @@ BEGIN
   RETURN MapiHelper(r, f, idx)
 END Mapi;
 
+(* m maps every character to itself. *)
+PROCEDURE IdentityMapping*(VAR m: Mapping);
+  VAR i: INTEGER;
+BEGIN
+  FOR i := 0 TO 255 DO m.to[i] := CHR(i) END
+END IdentityMapping;
+
+(* m maps from[i] to to[i] for each i, and every other character to
+   itself; from and to are taken up to their 0X.  Returns FALSE, with m
+   the identity, if from and to differ in length or a character occurs in
+   from twice -- where Ada.Strings.Maps.To_Mapping raises
+   Translation_Error. *)
+PROCEDURE MakeMapping*(from, to: ARRAY OF CHAR; VAR m: Mapping): BOOLEAN;
+  VAR i, len: LONGINT; seen: CharSet;
+BEGIN
+  IdentityMapping(m);
+  len := StrLen(from);
+  IF StrLen(to) # len THEN RETURN FALSE END;
+  MakeCharSet("", seen);
+  FOR i := 0 TO len - 1 DO
+    IF seen.has[ORD(from[i])] THEN IdentityMapping(m); RETURN FALSE END;
+    seen.has[ORD(from[i])] := TRUE;
+    m.to[ORD(from[i])] := to[i]
+  END;
+  RETURN TRUE
+END MakeMapping;
+
+PROCEDURE TranslateHelper(r: Rope; VAR m: Mapping): Rope;
+  VAR leaf, newLeaf: Leaf; c: Concat; i: LONGINT;
+BEGIN
+  IF r = NIL THEN RETURN NIL END;
+  IF r IS Leaf THEN
+    leaf := r(Leaf);
+    NEW(newLeaf);
+    NEW(newLeaf.chars, leaf.length);
+    FOR i := 0 TO leaf.length - 1 DO newLeaf.chars[i] := m.to[ORD(leaf.chars[i])] END;
+    newLeaf.length := leaf.length;
+    newLeaf.depth := 0;
+    RETURN newLeaf
+  END;
+  c := r(Concat);
+  RETURN NewConcat(TranslateHelper(c.left, m), TranslateHelper(c.right, m))
+END TranslateHelper;
+
+(* r with every character ch replaced by m.to[ORD(ch)] -- Map, with a
+   table in place of a Mapper, and the same tree shape as r.  VAR only so
+   that m is not copied; it is not changed.  Ported back from the Ada
+   Ropes package (Ada.Strings.Unbounded's Translate with a
+   Character_Mapping; its Character_Mapping_Function form is Map
+   itself). *)
+PROCEDURE Translate*(r: Rope; VAR m: Mapping): Rope;
+BEGIN
+  RETURN TranslateHelper(r, m)
+END Translate;
+
 (* --- ASCII case --- *)
-
-PROCEDURE UpperChar(ch: CHAR): CHAR;
-BEGIN
-  IF (ch >= "a") & (ch <= "z") THEN RETURN CAP(ch) END;
-  RETURN ch
-END UpperChar;
-
-PROCEDURE LowerChar(ch: CHAR): CHAR;
-BEGIN
-  IF (ch >= "A") & (ch <= "Z") THEN RETURN CHR(ORD(ch) + 32) END;
-  RETURN ch
-END LowerChar;
 
 (* r with every ASCII lowercase letter translated to uppercase; other
    characters, including accented letters, are left unchanged. *)

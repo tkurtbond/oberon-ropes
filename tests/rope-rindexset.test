@@ -1,0 +1,9 @@
+# RIndexSet: the last digit at or before 8.
+program RopeTool
+arg rindexset
+arg abc123def456
+arg 0123456789
+arg 8
+status 0
+output
+5

@@ -1,0 +1,9 @@
+# CompareNoCase: "apple" sorts before "Banana" ignoring case, though
+# cmp puts it after ("a" > "B").
+program RopeTool
+arg cmpnocase
+arg apple
+arg Banana
+status 0
+output
+-1

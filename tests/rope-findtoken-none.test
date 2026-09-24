@@ -1,0 +1,9 @@
+# No token: START is FROM and LEN is 0.
+program RopeTool
+arg findtoken
+arg no digits here
+arg 0123456789
+arg 3
+status 0
+output
+3 0

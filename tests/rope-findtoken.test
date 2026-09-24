@@ -1,0 +1,10 @@
+# FindToken: the first run of digits at or after 0 starts at 8 and is
+# 3 long.
+program RopeTool
+arg findtoken
+arg   alpha 123 beta 45
+arg 0123456789
+arg 0
+status 0
+output
+8 3

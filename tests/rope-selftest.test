@@ -4,7 +4,11 @@
 # Repeat, the auto-rebalance / explicit Balance machinery, Head/Tail,
 # and the newer additions (Map/Mapi, ASCII case, Trim, Escaped, char
 # search, ContainsPattern, RFind, Blit, Iterate, Split, and the
-# Iterator) all still behave as designed.
+# Iterator) all still behave as designed -- and the ones ported back
+# from the Ada Ropes package later: IterateChunks, the linear Compare,
+# Rider and whole-file I/O, the leaf-walking searches, character sets,
+# FindToken, Count, Replace/ReplaceChar, Translate, mapped search,
+# CompareString, case-insensitive comparison and Hash.
 program RopeTest
 status 0
 output
@@ -207,5 +211,48 @@ ok - Blit: every start and length across leaf boundaries copies exactly that ran
 ok - Escape: every kind of escape, including \NNN for 0X and 0FFX
 ok - Escape: leaf boundaries in the middle of the input don't change the result
 ok - Escape: a million-character input escapes the same as its pieces
+ok - Find, RFind, Count: every pattern and from, four tree shapes, agree with a naive search
+ok - FindMapped, RFindMapped, CountMapped: LowerChar and a swap mapper agree with a naive search
+ok - IndexSet, RIndexSet, IndexChar, RIndexChar: every from, both tests, agree with a naive scan
+ok - FindMapped: case-insensitive with LowerChar
+ok - FindMapped: the pattern is not mapped
+ok - FindMapped: a swap mapper finds abc for xyz
+ok - FindMapped: a NIL mapper is Find
+ok - Count and CountMapped
+ok - Count: the empty pattern never occurs
+ok - searches of NIL
+ok - Find and RFind on a twenty-million-character rope
+ok - Count on a twenty-million-character rope
+ok - IndexSet, RIndexSet
+ok - CountSet
+ok - IndexNonBlank, RIndexNonBlank
+ok - IndexNonBlank: all blank
+ok - FindToken: a digit run across a leaf boundary
+ok - FindToken: not in set (outside)
+ok - FindToken: none gives start = from, len = 0
+ok - FindToken: a negative from is treated as 0
+ok - Replace: a slice across the leaf boundary
+ok - Replace: len 0 inserts
+ok - Replace: len past the end is clamped
+ok - Replace: a negative pos is clamped, NIL by removes
+ok - Replace: pos past the end appends
+ok - ReplaceChar; r itself unchanged
+ok - ReplaceChar: the last character
+ok - MakeMapping: valid
+ok - Translate: characters mapped, tree shape kept
+ok - MakeMapping: different lengths fail, leaving the identity
+ok - MakeMapping: a repeated from character fails
+ok - Translate: many to one
+ok - Translate of NIL is NIL
+ok - CompareString: every prefix, both ways, agrees with Compare
+ok - CompareNoCase, EqualNoCase: every pair of prefixes agrees with Compare on LowercaseAscii
+ok - EqualString
+ok - EqualNoCase: across case
+ok - Hash: GNAT's Ada.Strings.Hash value
+ok - HashNoCase: GNAT's Hash_Case_Insensitive value
+ok - Hash: the same whatever the leaves
+ok - Hash: distinguishes case
+ok - HashNoCase: the same for any case
+ok - Hash of NIL is 0
 
-199/199 tests passed.
+242/242 tests passed.

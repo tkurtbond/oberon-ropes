@@ -1,0 +1,9 @@
+# CountMapped with LowerChar: every case of "the" counts -- five, the
+# last inside "other".
+program RopeTool
+arg countnocase
+arg The the THE tHe other
+arg THE
+status 0
+output
+5

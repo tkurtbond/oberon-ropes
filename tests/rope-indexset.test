@@ -1,0 +1,9 @@
+# IndexSet: the first digit at or after 0.
+program RopeTool
+arg indexset
+arg abc123def456
+arg 0123456789
+arg 0
+status 0
+output
+3

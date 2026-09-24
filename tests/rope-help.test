@@ -105,3 +105,48 @@ readfile FILE  Read all of FILE, byte for byte, and print its length, a space, a
 
 blit S SRCSTART DST DSTSTART LEN  Print DST with LEN characters of S from SRCSTART copied into it at DSTSTART.
 
+
+replace S POS LEN BY  Print S with the LEN characters at POS replaced by BY.
+
+
+replacechar S POS CH  Print S with the character at POS replaced by CH.
+
+
+count S PATTERN  Print the number of non-overlapping occurrences of PATTERN in S.
+
+
+countset S CHARS  Print the number of characters of S that are any of CHARS.
+
+
+indexset S CHARS FROM  Print the index of the first character of S at or after FROM that is any of CHARS, or -1.
+
+
+rindexset S CHARS BEFORE  Print the index of the last character of S at or before BEFORE that is any of CHARS, or -1.
+
+
+nonblank S FROM  Print the index of the first non-space character of S at or after FROM, or -1.
+
+
+rnonblank S BEFORE  Print the index of the last non-space character of S at or before BEFORE, or -1.
+
+
+findtoken S CHARS FROM  Print START LEN: the first run of characters of S at or after FROM that are any of CHARS.
+
+
+translate S FROM TO  Print S with each character in FROM replaced by the one at the same place in TO.
+
+
+cmpnocase A B  Print -1, 0 or 1: how A compares to B, ignoring ASCII case.
+
+
+hash S  Print the hash of S.
+
+
+hashnocase S  Print the hash of S, ignoring ASCII case.
+
+
+findnocase S PATTERN FROM  Print the index of PATTERN in S at or after FROM, ignoring ASCII case, or -1.
+
+
+countnocase S PATTERN  Print the number of non-overlapping occurrences of PATTERN in S, ignoring ASCII case.
+

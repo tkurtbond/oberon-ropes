@@ -1,0 +1,8 @@
+# CountSet: characters of S that are any of CHARS (l and o).
+program RopeTool
+arg countset
+arg hello world
+arg lo
+status 0
+output
+5

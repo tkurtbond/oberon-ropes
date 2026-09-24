@@ -22,7 +22,10 @@ VAR
   upperParser, lowerParser, capitalizeParser, uncapitalizeParser, escapedParser,
   makeParser, bigCatParser, indexCharParser, rIndexCharParser, containsParser,
   overwriteParser, headParser, tailParser, containsPatternParser,
-  iterateParser, iteratorParser, linesParser, readFileParser, blitParser: ArgParser.Parser;
+  iterateParser, iteratorParser, linesParser, readFileParser, blitParser,
+  replaceParser, replaceCharParser, countParser, countSetParser, indexSetParser, rIndexSetParser,
+  nonBlankParser, rNonBlankParser, findTokenParser, translateParser, cmpNoCaseParser,
+  hashParser, hashNoCaseParser, findNoCaseParser, countNoCaseParser: ArgParser.Parser;
 
   catCount: INTEGER; catA: Rope.Rope;
   subCount: INTEGER; subS: Rope.Rope; subStart: LONGINT;
@@ -44,6 +47,19 @@ VAR
   tailCount: INTEGER; tailS: Rope.Rope; tailLen: LONGINT;
   containsPatternCount: INTEGER; containsPatternS: Rope.Rope; containsPatternPattern: ArgParser.String;
   blitCount: INTEGER; blitS: Rope.Rope; blitSrc, blitDstStart: LONGINT; blitDst: POINTER TO ARRAY OF CHAR;
+  replaceCount: INTEGER; replaceS: Rope.Rope; replacePos, replaceLen: LONGINT;
+  replaceCharCount: INTEGER; replaceCharS: Rope.Rope; replaceCharPos: LONGINT;
+  countCount: INTEGER; countS: Rope.Rope;
+  countSetCount: INTEGER; countSetS: Rope.Rope;
+  indexSetCount: INTEGER; indexSetS: Rope.Rope; indexSetSet: Rope.CharSet;
+  rIndexSetCount: INTEGER; rIndexSetS: Rope.Rope; rIndexSetSet: Rope.CharSet;
+  nonBlankCount: INTEGER; nonBlankS: Rope.Rope;
+  rNonBlankCount: INTEGER; rNonBlankS: Rope.Rope;
+  findTokenCount: INTEGER; findTokenS: Rope.Rope; findTokenSet: Rope.CharSet;
+  translateCount: INTEGER; translateS: Rope.Rope; translateFrom: ArgParser.String;
+  cmpNoCaseCount: INTEGER; cmpNoCaseA: Rope.Rope;
+  findNoCaseCount: INTEGER; findNoCaseS: Rope.Rope; findNoCasePattern: ArgParser.String;
+  countNoCaseCount: INTEGER; countNoCaseS: Rope.Rope;
 
 PROCEDURE ParseInt(s: ARRAY OF CHAR): LONGINT;
   VAR val: LONGINT;
@@ -125,7 +141,7 @@ BEGIN
   IF cmpCount = 0 THEN
     cmpA := Rope.FromString(arg)
   ELSIF cmpCount = 1 THEN
-    Out.Int(Rope.Compare(cmpA, Rope.FromString(arg)), 0); Out.Ln
+    Out.Int(Rope.CompareString(cmpA, arg), 0); Out.Ln
   END;
   INC(cmpCount);
   RETURN TRUE
@@ -545,8 +561,239 @@ BEGIN
   RETURN TRUE
 END BlitArgHandler;
 
+(* --- Ported back from the Ada Ropes package --- *)
+
+(* The characters of s up to its 0X, as ASCII lower case, into t: how
+   findnocase and countnocase lower their PATTERN, since FindMapped and
+   CountMapped map only the rope, never the pattern. *)
+PROCEDURE LowerString(s: ARRAY OF CHAR; VAR t: ARRAY OF CHAR);
+  VAR i: LONGINT;
+BEGIN
+  i := 0;
+  WHILE (i < LEN(s)) & (s[i] # 0X) & (i < LEN(t) - 1) DO t[i] := Rope.LowerChar(s[i]); INC(i) END;
+  t[i] := 0X
+END LowerString;
+
+(* --- replace S POS LEN BY --- *)
+
+PROCEDURE ReplaceArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF replaceCount = 0 THEN
+    replaceS := Rope.FromString(arg)
+  ELSIF replaceCount = 1 THEN
+    replacePos := ParseInt(arg)
+  ELSIF replaceCount = 2 THEN
+    replaceLen := ParseInt(arg)
+  ELSIF replaceCount = 3 THEN
+    Rope.Write(Rope.Replace(replaceS, replacePos, replaceLen, Rope.FromString(arg))); Out.Ln
+  END;
+  INC(replaceCount);
+  RETURN TRUE
+END ReplaceArgHandler;
+
+(* --- replacechar S POS CH --- *)
+
+(* Rope.ReplaceChar traps (HALT) for a POS outside S, as Fetch does; the
+   check here reports that as an error instead of a bare trap. *)
+PROCEDURE ReplaceCharArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF replaceCharCount = 0 THEN
+    replaceCharS := Rope.FromString(arg)
+  ELSIF replaceCharCount = 1 THEN
+    replaceCharPos := ParseInt(arg)
+  ELSIF replaceCharCount = 2 THEN
+    IF (replaceCharPos < 0) OR (replaceCharPos >= Rope.Length(replaceCharS)) THEN
+      Out.String("Error: POS out of range"); Out.Ln;
+      HALT(1)
+    END;
+    Rope.Write(Rope.ReplaceChar(replaceCharS, replaceCharPos, arg[0])); Out.Ln
+  END;
+  INC(replaceCharCount);
+  RETURN TRUE
+END ReplaceCharArgHandler;
+
+(* --- count S PATTERN --- *)
+
+PROCEDURE CountArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF countCount = 0 THEN
+    countS := Rope.FromString(arg)
+  ELSIF countCount = 1 THEN
+    Out.Int(Rope.Count(countS, arg), 0); Out.Ln
+  END;
+  INC(countCount);
+  RETURN TRUE
+END CountArgHandler;
+
+(* --- countset S CHARS --- *)
+
+PROCEDURE CountSetArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+  VAR set: Rope.CharSet;
+BEGIN
+  IF countSetCount = 0 THEN
+    countSetS := Rope.FromString(arg)
+  ELSIF countSetCount = 1 THEN
+    Rope.MakeCharSet(arg, set);
+    Out.Int(Rope.CountSet(countSetS, set), 0); Out.Ln
+  END;
+  INC(countSetCount);
+  RETURN TRUE
+END CountSetArgHandler;
+
+(* --- indexset S CHARS FROM / rindexset S CHARS BEFORE --- *)
+
+PROCEDURE IndexSetArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF indexSetCount = 0 THEN
+    indexSetS := Rope.FromString(arg)
+  ELSIF indexSetCount = 1 THEN
+    Rope.MakeCharSet(arg, indexSetSet)
+  ELSIF indexSetCount = 2 THEN
+    Out.Int(Rope.IndexSet(indexSetS, indexSetSet, TRUE, ParseInt(arg)), 0); Out.Ln
+  END;
+  INC(indexSetCount);
+  RETURN TRUE
+END IndexSetArgHandler;
+
+PROCEDURE RIndexSetArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF rIndexSetCount = 0 THEN
+    rIndexSetS := Rope.FromString(arg)
+  ELSIF rIndexSetCount = 1 THEN
+    Rope.MakeCharSet(arg, rIndexSetSet)
+  ELSIF rIndexSetCount = 2 THEN
+    Out.Int(Rope.RIndexSet(rIndexSetS, rIndexSetSet, TRUE, ParseInt(arg)), 0); Out.Ln
+  END;
+  INC(rIndexSetCount);
+  RETURN TRUE
+END RIndexSetArgHandler;
+
+(* --- nonblank S FROM / rnonblank S BEFORE --- *)
+
+PROCEDURE NonBlankArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF nonBlankCount = 0 THEN
+    nonBlankS := Rope.FromString(arg)
+  ELSIF nonBlankCount = 1 THEN
+    Out.Int(Rope.IndexNonBlank(nonBlankS, ParseInt(arg)), 0); Out.Ln
+  END;
+  INC(nonBlankCount);
+  RETURN TRUE
+END NonBlankArgHandler;
+
+PROCEDURE RNonBlankArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF rNonBlankCount = 0 THEN
+    rNonBlankS := Rope.FromString(arg)
+  ELSIF rNonBlankCount = 1 THEN
+    Out.Int(Rope.RIndexNonBlank(rNonBlankS, ParseInt(arg)), 0); Out.Ln
+  END;
+  INC(rNonBlankCount);
+  RETURN TRUE
+END RNonBlankArgHandler;
+
+(* --- findtoken S CHARS FROM --- *)
+
+(* Prints START LEN: Substring(S, START, LEN) is the token. *)
+PROCEDURE FindTokenArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+  VAR start, len: LONGINT;
+BEGIN
+  IF findTokenCount = 0 THEN
+    findTokenS := Rope.FromString(arg)
+  ELSIF findTokenCount = 1 THEN
+    Rope.MakeCharSet(arg, findTokenSet)
+  ELSIF findTokenCount = 2 THEN
+    Rope.FindToken(findTokenS, findTokenSet, TRUE, ParseInt(arg), start, len);
+    Out.Int(start, 0); Out.Char(" "); Out.Int(len, 0); Out.Ln
+  END;
+  INC(findTokenCount);
+  RETURN TRUE
+END FindTokenArgHandler;
+
+(* --- translate S FROM TO --- *)
+
+PROCEDURE TranslateArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+  VAR m: Rope.Mapping;
+BEGIN
+  IF translateCount = 0 THEN
+    translateS := Rope.FromString(arg)
+  ELSIF translateCount = 1 THEN
+    COPY(arg, translateFrom)
+  ELSIF translateCount = 2 THEN
+    IF ~Rope.MakeMapping(translateFrom, arg, m) THEN
+      Out.String("Error: FROM and TO must be the same length, with no character repeated in FROM"); Out.Ln;
+      HALT(1)
+    END;
+    Rope.Write(Rope.Translate(translateS, m)); Out.Ln
+  END;
+  INC(translateCount);
+  RETURN TRUE
+END TranslateArgHandler;
+
+(* --- cmpnocase A B --- *)
+
+PROCEDURE CmpNoCaseArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF cmpNoCaseCount = 0 THEN
+    cmpNoCaseA := Rope.FromString(arg)
+  ELSIF cmpNoCaseCount = 1 THEN
+    Out.Int(Rope.CompareNoCase(cmpNoCaseA, Rope.FromString(arg)), 0); Out.Ln
+  END;
+  INC(cmpNoCaseCount);
+  RETURN TRUE
+END CmpNoCaseArgHandler;
+
+(* --- hash S / hashnocase S --- *)
+
+(* The same values GNAT's Ada.Strings.Hash and Hash_Case_Insensitive
+   give, as the Ada Ropes package's rope_tool hash and hashci print. *)
+PROCEDURE HashArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  Out.Int(Rope.Hash(Rope.FromString(arg)), 0); Out.Ln;
+  RETURN TRUE
+END HashArgHandler;
+
+PROCEDURE HashNoCaseArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  Out.Int(Rope.HashNoCase(Rope.FromString(arg)), 0); Out.Ln;
+  RETURN TRUE
+END HashNoCaseArgHandler;
+
+(* --- findnocase S PATTERN FROM / countnocase S PATTERN --- *)
+
+(* Rope.FindMapped and Rope.CountMapped with Rope.LowerChar, and PATTERN
+   lowered first. *)
+PROCEDURE FindNoCaseArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+BEGIN
+  IF findNoCaseCount = 0 THEN
+    findNoCaseS := Rope.FromString(arg)
+  ELSIF findNoCaseCount = 1 THEN
+    LowerString(arg, findNoCasePattern)
+  ELSIF findNoCaseCount = 2 THEN
+    Out.Int(Rope.FindMapped(findNoCaseS, findNoCasePattern, ParseInt(arg), Rope.LowerChar), 0); Out.Ln
+  END;
+  INC(findNoCaseCount);
+  RETURN TRUE
+END FindNoCaseArgHandler;
+
+PROCEDURE CountNoCaseArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
+  VAR pattern: ArgParser.String;
+BEGIN
+  IF countNoCaseCount = 0 THEN
+    countNoCaseS := Rope.FromString(arg)
+  ELSIF countNoCaseCount = 1 THEN
+    LowerString(arg, pattern);
+    Out.Int(Rope.CountMapped(countNoCaseS, pattern, Rope.LowerChar), 0); Out.Ln
+  END;
+  INC(countNoCaseCount);
+  RETURN TRUE
+END CountNoCaseArgHandler;
+
 BEGIN
   catCount := 0;
+  replaceCount := 0; replaceCharCount := 0; countCount := 0; countSetCount := 0;
+  indexSetCount := 0; rIndexSetCount := 0; nonBlankCount := 0; rNonBlankCount := 0;
+  findTokenCount := 0; translateCount := 0; cmpNoCaseCount := 0; findNoCaseCount := 0; countNoCaseCount := 0;
   subCount := 0;
   fetchCount := 0;
   cmpCount := 0;
@@ -608,6 +855,40 @@ BEGIN
   readFileParser := ArgParser.NewParser(
     "readfile FILE  Read all of FILE, byte for byte, and print its length, a space, and its contents escaped.", ReadFileArgHandler);
 
+  replaceParser := ArgParser.NewParser(
+    "replace S POS LEN BY  Print S with the LEN characters at POS replaced by BY.", ReplaceArgHandler);
+  replaceCharParser := ArgParser.NewParser(
+    "replacechar S POS CH  Print S with the character at POS replaced by CH.", ReplaceCharArgHandler);
+  countParser := ArgParser.NewParser(
+    "count S PATTERN  Print the number of non-overlapping occurrences of PATTERN in S.", CountArgHandler);
+  countSetParser := ArgParser.NewParser(
+    "countset S CHARS  Print the number of characters of S that are any of CHARS.", CountSetArgHandler);
+  indexSetParser := ArgParser.NewParser(
+    "indexset S CHARS FROM  Print the index of the first character of S at or after FROM that is any of CHARS, or -1.",
+    IndexSetArgHandler);
+  rIndexSetParser := ArgParser.NewParser(
+    "rindexset S CHARS BEFORE  Print the index of the last character of S at or before BEFORE that is any of CHARS, or -1.",
+    RIndexSetArgHandler);
+  nonBlankParser := ArgParser.NewParser(
+    "nonblank S FROM  Print the index of the first non-space character of S at or after FROM, or -1.", NonBlankArgHandler);
+  rNonBlankParser := ArgParser.NewParser(
+    "rnonblank S BEFORE  Print the index of the last non-space character of S at or before BEFORE, or -1.", RNonBlankArgHandler);
+  findTokenParser := ArgParser.NewParser(
+    "findtoken S CHARS FROM  Print START LEN: the first run of characters of S at or after FROM that are any of CHARS.",
+    FindTokenArgHandler);
+  translateParser := ArgParser.NewParser(
+    "translate S FROM TO  Print S with each character in FROM replaced by the one at the same place in TO.", TranslateArgHandler);
+  cmpNoCaseParser := ArgParser.NewParser(
+    "cmpnocase A B  Print -1, 0 or 1: how A compares to B, ignoring ASCII case.", CmpNoCaseArgHandler);
+  hashParser := ArgParser.NewParser("hash S  Print the hash of S.", HashArgHandler);
+  hashNoCaseParser := ArgParser.NewParser("hashnocase S  Print the hash of S, ignoring ASCII case.", HashNoCaseArgHandler);
+  findNoCaseParser := ArgParser.NewParser(
+    "findnocase S PATTERN FROM  Print the index of PATTERN in S at or after FROM, ignoring ASCII case, or -1.",
+    FindNoCaseArgHandler);
+  countNoCaseParser := ArgParser.NewParser(
+    "countnocase S PATTERN  Print the number of non-overlapping occurrences of PATTERN in S, ignoring ASCII case.",
+    CountNoCaseArgHandler);
+
   parser := ArgParser.NewParser("ropetool [options] command arguments...", TopArgHandler);
   parser.AddOption(ArgParser.MakeOption("h", "help", "Display help message and exit.", DoHelp));
   parser.AddCommand(ArgParser.MakeCommand("cat", catParser));
@@ -643,6 +924,21 @@ BEGIN
   parser.AddCommand(ArgParser.MakeCommand("lines", linesParser));
   parser.AddCommand(ArgParser.MakeCommand("readfile", readFileParser));
   parser.AddCommand(ArgParser.MakeCommand("blit", blitParser));
+  parser.AddCommand(ArgParser.MakeCommand("replace", replaceParser));
+  parser.AddCommand(ArgParser.MakeCommand("replacechar", replaceCharParser));
+  parser.AddCommand(ArgParser.MakeCommand("count", countParser));
+  parser.AddCommand(ArgParser.MakeCommand("countset", countSetParser));
+  parser.AddCommand(ArgParser.MakeCommand("indexset", indexSetParser));
+  parser.AddCommand(ArgParser.MakeCommand("rindexset", rIndexSetParser));
+  parser.AddCommand(ArgParser.MakeCommand("nonblank", nonBlankParser));
+  parser.AddCommand(ArgParser.MakeCommand("rnonblank", rNonBlankParser));
+  parser.AddCommand(ArgParser.MakeCommand("findtoken", findTokenParser));
+  parser.AddCommand(ArgParser.MakeCommand("translate", translateParser));
+  parser.AddCommand(ArgParser.MakeCommand("cmpnocase", cmpNoCaseParser));
+  parser.AddCommand(ArgParser.MakeCommand("hash", hashParser));
+  parser.AddCommand(ArgParser.MakeCommand("hashnocase", hashNoCaseParser));
+  parser.AddCommand(ArgParser.MakeCommand("findnocase", findNoCaseParser));
+  parser.AddCommand(ArgParser.MakeCommand("countnocase", countNoCaseParser));
 
   parser.ParseArguments(1)
 END RopeTool.

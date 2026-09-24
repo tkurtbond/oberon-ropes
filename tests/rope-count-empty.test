@@ -1,0 +1,9 @@
+# Count of the empty pattern is 0: it never occurs, as Split never
+# splits on an empty separator.
+program RopeTool
+arg count
+arg abc
+arg
+status 0
+output
+0
