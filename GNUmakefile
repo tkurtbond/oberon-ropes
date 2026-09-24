@@ -15,12 +15,12 @@ vpath %.Mod $(OBERON_MODULES)
 INSTALLDIR = $(firstword $(subst :, ,$(OBERON_MODULES)))
 MODULES = Ropes.Mod
 
-# Only the programs need ArgParser, so clean, install and uninstall don't
-# check for it.
+# Only the programs need ArgParser, and Err, which ArgParser uses and the
+# ArgParser repo installs with it, so clean, install and uninstall don't
+# check for them.
+SHARED_MODULES = ArgParser.Mod Err.Mod
 ifneq ($(if $(MAKECMDGOALS),$(filter-out clean install uninstall,$(MAKECMDGOALS)),all),)
-ifeq ($(wildcard $(addsuffix /ArgParser.Mod,$(subst :, ,$(OBERON_MODULES)))),)
-$(error ArgParser.Mod is not in OBERON_MODULES ($(OBERON_MODULES)))
-endif
+$(foreach m,$(SHARED_MODULES),$(if $(wildcard $(addsuffix /$(m),$(subst :, ,$(OBERON_MODULES)))),,$(error $(m) is not in OBERON_MODULES ($(OBERON_MODULES)); run make install in ~/Repos/Oberon/ArgParser)))
 endif
 
 PROGRAMS=RopeTool RopeTest
@@ -32,6 +32,9 @@ all: $(PROGRAMS)
 # RopeTool imports ArgParser, so it needs its symbol file (built along with
 # ArgParser.o) and is rebuilt when it changes.
 RopeTool: ArgParser.o
+
+# ArgParser writes its errors to standard error with Err.
+ArgParser.o: Err.o
 
 # RopeTool and RopeTest both import Ropes, so they need its symbol file too.
 RopeTool RopeTest: Ropes.o

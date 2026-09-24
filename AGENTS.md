@@ -4,7 +4,8 @@ Working notes for an agent in this repo, which holds `Ropes.Mod`,
 `RopeTest.Mod` and `RopeTool.Mod`, Oberon-2 modules built with voc
 (Vishap Oberon). They moved here from `~/Repos/Oberon/oberon-tools`.
 `RopeTool` imports `ArgParser`, which is shared between repos and
-lives in `OBERON_MODULES` (see below). These modules are
+lives in `OBERON_MODULES` (see below), as does `Err`, which
+`ArgParser` uses to write its errors to standard error. These modules are
 the model for the Ada port at `~/Repos/Ada/Ropes`, and
 several of that port's additions have been ported back here. Its
 `PLAN.md` has a full entry for each backport: Phases 9, 10, 12, 14
@@ -25,13 +26,15 @@ tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their rea
 - A new module that a program imports needs a `Program: Module.o` line
   in the `GNUmakefile`, as `RopeTool RopeTest: Ropes.o` does.
 - A new program goes in `PROGRAMS` and in `.gitignore`.
-- **Shared modules such as `ArgParser.Mod` are not in this repo.** The
-  `GNUmakefile` finds them through `vpath` in `OBERON_MODULES`, a
-  colon-separated list of directories (default
+- **Shared modules such as `ArgParser.Mod` and `Err.Mod` are not in
+  this repo.** The `GNUmakefile` finds them through `vpath` in
+  `OBERON_MODULES`, a colon-separated list of directories (default
   `/usr/local/sw/versions/oberon/include`), and voc builds their
-  `.sym`, `.c`, `.h` and `.o` here. Change `ArgParser.Mod` in its own
-  repo, `~/Repos/Oberon/ArgParser`, run `make test` and `make install`
-  there, then rebuild and test the repos that use it, `oberon-tools` too.
+  `.sym`, `.c`, `.h` and `.o` here, `Err` before `ArgParser`. If one
+  is missing, make stops and says so. Both are in their own repo,
+  `~/Repos/Oberon/ArgParser`; change them there, run `make test` and
+  `make install` there, then rebuild and test the repos that use them,
+  `oberon-tools` too.
 - **After changing `Ropes.Mod`, run `make test`, then `make install`**,
   so other repos that get `Ropes.Mod` from `OBERON_MODULES` see the
   change. `make install` compiles `Ropes.Mod` first and doesn't need
@@ -41,7 +44,7 @@ tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their rea
   directory in `OBERON_MODULES`, and succeeds if it is already gone.
   Like `make clean` and `make install`, it doesn't need ArgParser.
   `make clean` never touches `OBERON_MODULES`: it removes only the
-  build files here, including `ArgParser`'s.
+  build files here, including `ArgParser`'s and `Err`'s.
 - The `Rope*` modules are voc-only; there is no poc build.
 - **`RopeTest` is the in-process check battery**, printing `ok -` or
   `not ok -` per check and then `N/M tests passed.`.
