@@ -15,8 +15,9 @@ vpath %.Mod $(OBERON_MODULES)
 INSTALLDIR = $(firstword $(subst :, ,$(OBERON_MODULES)))
 MODULES = Ropes.Mod
 
-# Only the programs need ArgParser, so clean and install don't check for it.
-ifneq ($(if $(MAKECMDGOALS),$(filter-out clean install,$(MAKECMDGOALS)),all),)
+# Only the programs need ArgParser, so clean, install and uninstall don't
+# check for it.
+ifneq ($(if $(MAKECMDGOALS),$(filter-out clean install uninstall,$(MAKECMDGOALS)),all),)
 ifeq ($(wildcard $(addsuffix /ArgParser.Mod,$(subst :, ,$(OBERON_MODULES)))),)
 $(error ArgParser.Mod is not in OBERON_MODULES ($(OBERON_MODULES)))
 endif
@@ -24,7 +25,7 @@ endif
 
 PROGRAMS=RopeTool RopeTest
 
-.PHONY: all clean test test-verbose install
+.PHONY: all clean test test-verbose install uninstall
 
 all: $(PROGRAMS)
 
@@ -56,6 +57,10 @@ test-verbose: all
 install: $(MODULES:.Mod=.o)
 	install -d $(INSTALLDIR)
 	install -m 644 $(MODULES) $(INSTALLDIR)
+
+# Remove what make install copied, and only that.
+uninstall:
+	rm -f $(addprefix $(INSTALLDIR)/,$(MODULES))
 
 clean:
 	-rm -fv $(PROGRAMS) *.c *.h *.o *.sym

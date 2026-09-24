@@ -16,6 +16,7 @@ and 26.
 make                 # RopeTool and RopeTest, with voc
 make test            # build, then run tests/*.test; ends "N ok, M failed"
 make install         # copy Ropes.Mod to the first directory in OBERON_MODULES
+make uninstall       # remove it from there
 tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their real output
 ```
 
