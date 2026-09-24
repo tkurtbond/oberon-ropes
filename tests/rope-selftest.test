@@ -1,5 +1,5 @@
 # RopeTest's full internal check suite; status 0 and every check "ok"
-# confirms Rope.Mod's construction, Cat (incl. the short-leaf merge and
+# confirms Ropes.Mod's construction, Cat (incl. the short-leaf merge and
 # absorb cases), Substring, Insert, Remove, Overwrite, Compare/Find/
 # Repeat, the auto-rebalance / explicit Balance machinery, Head/Tail,
 # and the newer additions (Map/Mapi, ASCII case, Trim, Escaped, char

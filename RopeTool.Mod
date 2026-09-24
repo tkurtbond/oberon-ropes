@@ -1,19 +1,19 @@
 MODULE RopeTool;
 
-(* Command-line demo of Rope.Mod: each subcommand builds one or two ropes
-   from its string arguments with Rope.FromString and prints the result of
-   one Rope operation.  Built on ArgParser, following the multiple
+(* Command-line demo of Ropes.Mod: each subcommand builds one or two ropes
+   from its string arguments with Ropes.FromString and prints the result of
+   one Ropes operation.  Built on ArgParser, following the multiple
    sub-parsers pattern in Commands.Mod: each subcommand is its own
    sub-parser with its own ArgHandler, called once per positional
    argument, so a handler accumulates arguments until it has seen enough
    to act.
 
-   Every rope result is printed with Rope.Write, leaf by leaf, so it is
-   never cut short: until Rope.Write existed this printed through
-   Rope.ToString into an ArgParser.MaxStringLength buffer, which silently
+   Every rope result is printed with Ropes.Write, leaf by leaf, so it is
+   never cut short: until Ropes.Write existed this printed through
+   Ropes.ToString into an ArgParser.MaxStringLength buffer, which silently
    truncated any result longer than that (make 5000 x printed 4095 x's). *)
 
-IMPORT ArgParser, Files, Out, Rope;
+IMPORT ArgParser, Files, Out, Ropes;
 
 VAR
   parser, catParser, subParser, lenParser, fetchParser,
@@ -27,39 +27,39 @@ VAR
   nonBlankParser, rNonBlankParser, findTokenParser, translateParser, cmpNoCaseParser,
   hashParser, hashNoCaseParser, findNoCaseParser, countNoCaseParser: ArgParser.Parser;
 
-  catCount: INTEGER; catA: Rope.Rope;
-  subCount: INTEGER; subS: Rope.Rope; subStart: LONGINT;
-  fetchCount: INTEGER; fetchS: Rope.Rope;
-  cmpCount: INTEGER; cmpA: Rope.Rope;
-  findCount: INTEGER; findS: Rope.Rope; findPattern: ArgParser.String;
-  repeatCount: INTEGER; repeatS: Rope.Rope;
-  insertCount: INTEGER; insertS: Rope.Rope; insertPos: LONGINT;
-  removeCount: INTEGER; removeS: Rope.Rope; removePos: LONGINT;
-  rfindCount: INTEGER; rfindS: Rope.Rope; rfindPattern: ArgParser.String;
-  splitCount: INTEGER; splitS: Rope.Rope;
+  catCount: INTEGER; catA: Ropes.Rope;
+  subCount: INTEGER; subS: Ropes.Rope; subStart: LONGINT;
+  fetchCount: INTEGER; fetchS: Ropes.Rope;
+  cmpCount: INTEGER; cmpA: Ropes.Rope;
+  findCount: INTEGER; findS: Ropes.Rope; findPattern: ArgParser.String;
+  repeatCount: INTEGER; repeatS: Ropes.Rope;
+  insertCount: INTEGER; insertS: Ropes.Rope; insertPos: LONGINT;
+  removeCount: INTEGER; removeS: Ropes.Rope; removePos: LONGINT;
+  rfindCount: INTEGER; rfindS: Ropes.Rope; rfindPattern: ArgParser.String;
+  splitCount: INTEGER; splitS: Ropes.Rope;
   makeCount: INTEGER; makeLen: LONGINT;
   bigCatCount: INTEGER; bigCatN1, bigCatN2: LONGINT; bigCatCh1: CHAR;
-  indexCharCount: INTEGER; indexCharS: Rope.Rope; indexCharCh: CHAR;
-  rIndexCharCount: INTEGER; rIndexCharS: Rope.Rope; rIndexCharCh: CHAR;
-  containsCount: INTEGER; containsS: Rope.Rope; containsCh: CHAR;
-  overwriteCount: INTEGER; overwriteS: Rope.Rope; overwritePos: LONGINT;
-  headCount: INTEGER; headS: Rope.Rope; headLen: LONGINT;
-  tailCount: INTEGER; tailS: Rope.Rope; tailLen: LONGINT;
-  containsPatternCount: INTEGER; containsPatternS: Rope.Rope; containsPatternPattern: ArgParser.String;
-  blitCount: INTEGER; blitS: Rope.Rope; blitSrc, blitDstStart: LONGINT; blitDst: POINTER TO ARRAY OF CHAR;
-  replaceCount: INTEGER; replaceS: Rope.Rope; replacePos, replaceLen: LONGINT;
-  replaceCharCount: INTEGER; replaceCharS: Rope.Rope; replaceCharPos: LONGINT;
-  countCount: INTEGER; countS: Rope.Rope;
-  countSetCount: INTEGER; countSetS: Rope.Rope;
-  indexSetCount: INTEGER; indexSetS: Rope.Rope; indexSetSet: Rope.CharSet;
-  rIndexSetCount: INTEGER; rIndexSetS: Rope.Rope; rIndexSetSet: Rope.CharSet;
-  nonBlankCount: INTEGER; nonBlankS: Rope.Rope;
-  rNonBlankCount: INTEGER; rNonBlankS: Rope.Rope;
-  findTokenCount: INTEGER; findTokenS: Rope.Rope; findTokenSet: Rope.CharSet;
-  translateCount: INTEGER; translateS: Rope.Rope; translateFrom: ArgParser.String;
-  cmpNoCaseCount: INTEGER; cmpNoCaseA: Rope.Rope;
-  findNoCaseCount: INTEGER; findNoCaseS: Rope.Rope; findNoCasePattern: ArgParser.String;
-  countNoCaseCount: INTEGER; countNoCaseS: Rope.Rope;
+  indexCharCount: INTEGER; indexCharS: Ropes.Rope; indexCharCh: CHAR;
+  rIndexCharCount: INTEGER; rIndexCharS: Ropes.Rope; rIndexCharCh: CHAR;
+  containsCount: INTEGER; containsS: Ropes.Rope; containsCh: CHAR;
+  overwriteCount: INTEGER; overwriteS: Ropes.Rope; overwritePos: LONGINT;
+  headCount: INTEGER; headS: Ropes.Rope; headLen: LONGINT;
+  tailCount: INTEGER; tailS: Ropes.Rope; tailLen: LONGINT;
+  containsPatternCount: INTEGER; containsPatternS: Ropes.Rope; containsPatternPattern: ArgParser.String;
+  blitCount: INTEGER; blitS: Ropes.Rope; blitSrc, blitDstStart: LONGINT; blitDst: POINTER TO ARRAY OF CHAR;
+  replaceCount: INTEGER; replaceS: Ropes.Rope; replacePos, replaceLen: LONGINT;
+  replaceCharCount: INTEGER; replaceCharS: Ropes.Rope; replaceCharPos: LONGINT;
+  countCount: INTEGER; countS: Ropes.Rope;
+  countSetCount: INTEGER; countSetS: Ropes.Rope;
+  indexSetCount: INTEGER; indexSetS: Ropes.Rope; indexSetSet: Ropes.CharSet;
+  rIndexSetCount: INTEGER; rIndexSetS: Ropes.Rope; rIndexSetSet: Ropes.CharSet;
+  nonBlankCount: INTEGER; nonBlankS: Ropes.Rope;
+  rNonBlankCount: INTEGER; rNonBlankS: Ropes.Rope;
+  findTokenCount: INTEGER; findTokenS: Ropes.Rope; findTokenSet: Ropes.CharSet;
+  translateCount: INTEGER; translateS: Ropes.Rope; translateFrom: ArgParser.String;
+  cmpNoCaseCount: INTEGER; cmpNoCaseA: Ropes.Rope;
+  findNoCaseCount: INTEGER; findNoCaseS: Ropes.Rope; findNoCasePattern: ArgParser.String;
+  countNoCaseCount: INTEGER; countNoCaseS: Ropes.Rope;
 
 PROCEDURE ParseInt(s: ARRAY OF CHAR): LONGINT;
   VAR val: LONGINT;
@@ -90,9 +90,9 @@ END TopArgHandler;
 PROCEDURE CatArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF catCount = 0 THEN
-    catA := Rope.FromString(arg)
+    catA := Ropes.FromString(arg)
   ELSIF catCount = 1 THEN
-    Rope.Write(Rope.Cat(catA, Rope.FromString(arg))); Out.Ln
+    Ropes.Write(Ropes.Cat(catA, Ropes.FromString(arg))); Out.Ln
   END;
   INC(catCount);
   RETURN TRUE
@@ -103,11 +103,11 @@ END CatArgHandler;
 PROCEDURE SubArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF subCount = 0 THEN
-    subS := Rope.FromString(arg)
+    subS := Ropes.FromString(arg)
   ELSIF subCount = 1 THEN
     subStart := ParseInt(arg)
   ELSIF subCount = 2 THEN
-    Rope.Write(Rope.Substring(subS, subStart, ParseInt(arg))); Out.Ln
+    Ropes.Write(Ropes.Substring(subS, subStart, ParseInt(arg))); Out.Ln
   END;
   INC(subCount);
   RETURN TRUE
@@ -117,7 +117,7 @@ END SubArgHandler;
 
 PROCEDURE LenArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Out.Int(Rope.Length(Rope.FromString(arg)), 0); Out.Ln;
+  Out.Int(Ropes.Length(Ropes.FromString(arg)), 0); Out.Ln;
   RETURN TRUE
 END LenArgHandler;
 
@@ -126,9 +126,9 @@ END LenArgHandler;
 PROCEDURE FetchArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF fetchCount = 0 THEN
-    fetchS := Rope.FromString(arg)
+    fetchS := Ropes.FromString(arg)
   ELSIF fetchCount = 1 THEN
-    Out.Char(Rope.Fetch(fetchS, ParseInt(arg))); Out.Ln
+    Out.Char(Ropes.Fetch(fetchS, ParseInt(arg))); Out.Ln
   END;
   INC(fetchCount);
   RETURN TRUE
@@ -139,9 +139,9 @@ END FetchArgHandler;
 PROCEDURE CmpArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF cmpCount = 0 THEN
-    cmpA := Rope.FromString(arg)
+    cmpA := Ropes.FromString(arg)
   ELSIF cmpCount = 1 THEN
-    Out.Int(Rope.CompareString(cmpA, arg), 0); Out.Ln
+    Out.Int(Ropes.CompareString(cmpA, arg), 0); Out.Ln
   END;
   INC(cmpCount);
   RETURN TRUE
@@ -152,11 +152,11 @@ END CmpArgHandler;
 PROCEDURE FindArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF findCount = 0 THEN
-    findS := Rope.FromString(arg)
+    findS := Ropes.FromString(arg)
   ELSIF findCount = 1 THEN
     COPY(arg, findPattern)
   ELSIF findCount = 2 THEN
-    Out.Int(Rope.Find(findS, findPattern, ParseInt(arg)), 0); Out.Ln
+    Out.Int(Ropes.Find(findS, findPattern, ParseInt(arg)), 0); Out.Ln
   END;
   INC(findCount);
   RETURN TRUE
@@ -167,9 +167,9 @@ END FindArgHandler;
 PROCEDURE RepeatArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF repeatCount = 0 THEN
-    repeatS := Rope.FromString(arg)
+    repeatS := Ropes.FromString(arg)
   ELSIF repeatCount = 1 THEN
-    Rope.Write(Rope.Repeat(repeatS, ParseInt(arg))); Out.Ln
+    Ropes.Write(Ropes.Repeat(repeatS, ParseInt(arg))); Out.Ln
   END;
   INC(repeatCount);
   RETURN TRUE
@@ -180,11 +180,11 @@ END RepeatArgHandler;
 PROCEDURE InsertArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF insertCount = 0 THEN
-    insertS := Rope.FromString(arg)
+    insertS := Ropes.FromString(arg)
   ELSIF insertCount = 1 THEN
     insertPos := ParseInt(arg)
   ELSIF insertCount = 2 THEN
-    Rope.Write(Rope.Insert(insertS, insertPos, Rope.FromString(arg))); Out.Ln
+    Ropes.Write(Ropes.Insert(insertS, insertPos, Ropes.FromString(arg))); Out.Ln
   END;
   INC(insertCount);
   RETURN TRUE
@@ -195,11 +195,11 @@ END InsertArgHandler;
 PROCEDURE RemoveArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF removeCount = 0 THEN
-    removeS := Rope.FromString(arg)
+    removeS := Ropes.FromString(arg)
   ELSIF removeCount = 1 THEN
     removePos := ParseInt(arg)
   ELSIF removeCount = 2 THEN
-    Rope.Write(Rope.Remove(removeS, removePos, ParseInt(arg))); Out.Ln
+    Ropes.Write(Ropes.Remove(removeS, removePos, ParseInt(arg))); Out.Ln
   END;
   INC(removeCount);
   RETURN TRUE
@@ -210,11 +210,11 @@ END RemoveArgHandler;
 PROCEDURE RFindArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF rfindCount = 0 THEN
-    rfindS := Rope.FromString(arg)
+    rfindS := Ropes.FromString(arg)
   ELSIF rfindCount = 1 THEN
     COPY(arg, rfindPattern)
   ELSIF rfindCount = 2 THEN
-    Out.Int(Rope.RFind(rfindS, rfindPattern, ParseInt(arg)), 0); Out.Ln
+    Out.Int(Ropes.RFind(rfindS, rfindPattern, ParseInt(arg)), 0); Out.Ln
   END;
   INC(rfindCount);
   RETURN TRUE
@@ -223,13 +223,13 @@ END RFindArgHandler;
 (* --- split S SEP --- *)
 
 PROCEDURE SplitArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
-  VAR arr: Rope.Pieces; i: LONGINT;
+  VAR arr: Ropes.Pieces; i: LONGINT;
 BEGIN
   IF splitCount = 0 THEN
-    splitS := Rope.FromString(arg)
+    splitS := Ropes.FromString(arg)
   ELSIF splitCount = 1 THEN
-    arr := Rope.SplitArray(splitS, arg);
-    FOR i := 0 TO LEN(arr^) - 1 DO Rope.Write(arr[i]); Out.Ln END
+    arr := Ropes.SplitArray(splitS, arg);
+    FOR i := 0 TO LEN(arr^) - 1 DO Ropes.Write(arr[i]); Out.Ln END
   END;
   INC(splitCount);
   RETURN TRUE
@@ -239,19 +239,19 @@ END SplitArgHandler;
 
 PROCEDURE TrimArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Rope.Write(Rope.Trim(Rope.FromString(arg))); Out.Ln;
+  Ropes.Write(Ropes.Trim(Ropes.FromString(arg))); Out.Ln;
   RETURN TRUE
 END TrimArgHandler;
 
 PROCEDURE TrimLeftArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Rope.Write(Rope.TrimLeft(Rope.FromString(arg))); Out.Ln;
+  Ropes.Write(Ropes.TrimLeft(Ropes.FromString(arg))); Out.Ln;
   RETURN TRUE
 END TrimLeftArgHandler;
 
 PROCEDURE TrimRightArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Rope.Write(Rope.TrimRight(Rope.FromString(arg))); Out.Ln;
+  Ropes.Write(Ropes.TrimRight(Ropes.FromString(arg))); Out.Ln;
   RETURN TRUE
 END TrimRightArgHandler;
 
@@ -259,25 +259,25 @@ END TrimRightArgHandler;
 
 PROCEDURE UpperArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Rope.Write(Rope.UppercaseAscii(Rope.FromString(arg))); Out.Ln;
+  Ropes.Write(Ropes.UppercaseAscii(Ropes.FromString(arg))); Out.Ln;
   RETURN TRUE
 END UpperArgHandler;
 
 PROCEDURE LowerArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Rope.Write(Rope.LowercaseAscii(Rope.FromString(arg))); Out.Ln;
+  Ropes.Write(Ropes.LowercaseAscii(Ropes.FromString(arg))); Out.Ln;
   RETURN TRUE
 END LowerArgHandler;
 
 PROCEDURE CapitalizeArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Rope.Write(Rope.CapitalizeAscii(Rope.FromString(arg))); Out.Ln;
+  Ropes.Write(Ropes.CapitalizeAscii(Ropes.FromString(arg))); Out.Ln;
   RETURN TRUE
 END CapitalizeArgHandler;
 
 PROCEDURE UncapitalizeArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Rope.Write(Rope.UncapitalizeAscii(Rope.FromString(arg))); Out.Ln;
+  Ropes.Write(Ropes.UncapitalizeAscii(Ropes.FromString(arg))); Out.Ln;
   RETURN TRUE
 END UncapitalizeArgHandler;
 
@@ -285,7 +285,7 @@ END UncapitalizeArgHandler;
 
 PROCEDURE EscapedArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Rope.Write(Rope.Escape(Rope.FromString(arg))); Out.Ln;
+  Ropes.Write(Ropes.Escape(Ropes.FromString(arg))); Out.Ln;
   RETURN TRUE
 END EscapedArgHandler;
 
@@ -296,7 +296,7 @@ BEGIN
   IF makeCount = 0 THEN
     makeLen := ParseInt(arg)
   ELSIF makeCount = 1 THEN
-    Rope.Write(Rope.Make(makeLen, arg[0])); Out.Ln
+    Ropes.Write(Ropes.Make(makeLen, arg[0])); Out.Ln
   END;
   INC(makeCount);
   RETURN TRUE
@@ -307,7 +307,7 @@ END MakeArgHandler;
 (* Prints the length of N1 copies of CH1 concatenated with N2 copies of
    CH2, built with Repeat so that even huge N1/N2 stay cheap (Repeat's
    binary doubling shares subtrees instead of copying characters).  Lets
-   the overflow guard in Rope.Mod's Cat be exercised -- and HALT(1), as
+   the overflow guard in Ropes.Mod's Cat be exercised -- and HALT(1), as
    designed, instead of silently wrapping -- without actually allocating
    anywhere near MAX(LONGINT) real characters. *)
 PROCEDURE BigCatArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
@@ -319,8 +319,8 @@ BEGIN
   ELSIF bigCatCount = 2 THEN
     bigCatN2 := ParseInt(arg)
   ELSIF bigCatCount = 3 THEN
-    Out.Int(Rope.Length(Rope.Cat(Rope.Repeat(Rope.FromChar(bigCatCh1), bigCatN1),
-                                  Rope.Repeat(Rope.FromChar(arg[0]), bigCatN2))), 0);
+    Out.Int(Ropes.Length(Ropes.Cat(Ropes.Repeat(Ropes.FromChar(bigCatCh1), bigCatN1),
+                                  Ropes.Repeat(Ropes.FromChar(arg[0]), bigCatN2))), 0);
     Out.Ln
   END;
   INC(bigCatCount);
@@ -332,11 +332,11 @@ END BigCatArgHandler;
 PROCEDURE IndexCharArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF indexCharCount = 0 THEN
-    indexCharS := Rope.FromString(arg)
+    indexCharS := Ropes.FromString(arg)
   ELSIF indexCharCount = 1 THEN
     indexCharCh := arg[0]
   ELSIF indexCharCount = 2 THEN
-    Out.Int(Rope.IndexChar(indexCharS, indexCharCh, ParseInt(arg)), 0); Out.Ln
+    Out.Int(Ropes.IndexChar(indexCharS, indexCharCh, ParseInt(arg)), 0); Out.Ln
   END;
   INC(indexCharCount);
   RETURN TRUE
@@ -347,11 +347,11 @@ END IndexCharArgHandler;
 PROCEDURE RIndexCharArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF rIndexCharCount = 0 THEN
-    rIndexCharS := Rope.FromString(arg)
+    rIndexCharS := Ropes.FromString(arg)
   ELSIF rIndexCharCount = 1 THEN
     rIndexCharCh := arg[0]
   ELSIF rIndexCharCount = 2 THEN
-    Out.Int(Rope.RIndexChar(rIndexCharS, rIndexCharCh, ParseInt(arg)), 0); Out.Ln
+    Out.Int(Ropes.RIndexChar(rIndexCharS, rIndexCharCh, ParseInt(arg)), 0); Out.Ln
   END;
   INC(rIndexCharCount);
   RETURN TRUE
@@ -362,11 +362,11 @@ END RIndexCharArgHandler;
 PROCEDURE ContainsArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF containsCount = 0 THEN
-    containsS := Rope.FromString(arg)
+    containsS := Ropes.FromString(arg)
   ELSIF containsCount = 1 THEN
     containsCh := arg[0]
   ELSIF containsCount = 2 THEN
-    IF Rope.Contains(containsS, containsCh, ParseInt(arg)) THEN
+    IF Ropes.Contains(containsS, containsCh, ParseInt(arg)) THEN
       Out.String("TRUE")
     ELSE
       Out.String("FALSE")
@@ -382,11 +382,11 @@ END ContainsArgHandler;
 PROCEDURE OverwriteArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF overwriteCount = 0 THEN
-    overwriteS := Rope.FromString(arg)
+    overwriteS := Ropes.FromString(arg)
   ELSIF overwriteCount = 1 THEN
     overwritePos := ParseInt(arg)
   ELSIF overwriteCount = 2 THEN
-    Rope.Write(Rope.Overwrite(overwriteS, overwritePos, Rope.FromString(arg))); Out.Ln
+    Ropes.Write(Ropes.Overwrite(overwriteS, overwritePos, Ropes.FromString(arg))); Out.Ln
   END;
   INC(overwriteCount);
   RETURN TRUE
@@ -397,11 +397,11 @@ END OverwriteArgHandler;
 PROCEDURE HeadArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF headCount = 0 THEN
-    headS := Rope.FromString(arg)
+    headS := Ropes.FromString(arg)
   ELSIF headCount = 1 THEN
     headLen := ParseInt(arg)
   ELSIF headCount = 2 THEN
-    Rope.Write(Rope.Head(headS, headLen, arg[0])); Out.Ln
+    Ropes.Write(Ropes.Head(headS, headLen, arg[0])); Out.Ln
   END;
   INC(headCount);
   RETURN TRUE
@@ -412,11 +412,11 @@ END HeadArgHandler;
 PROCEDURE TailArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF tailCount = 0 THEN
-    tailS := Rope.FromString(arg)
+    tailS := Ropes.FromString(arg)
   ELSIF tailCount = 1 THEN
     tailLen := ParseInt(arg)
   ELSIF tailCount = 2 THEN
-    Rope.Write(Rope.Tail(tailS, tailLen, arg[0])); Out.Ln
+    Ropes.Write(Ropes.Tail(tailS, tailLen, arg[0])); Out.Ln
   END;
   INC(tailCount);
   RETURN TRUE
@@ -427,11 +427,11 @@ END TailArgHandler;
 PROCEDURE ContainsPatternArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF containsPatternCount = 0 THEN
-    containsPatternS := Rope.FromString(arg)
+    containsPatternS := Ropes.FromString(arg)
   ELSIF containsPatternCount = 1 THEN
     COPY(arg, containsPatternPattern)
   ELSIF containsPatternCount = 2 THEN
-    IF Rope.ContainsPattern(containsPatternS, containsPatternPattern, ParseInt(arg)) THEN
+    IF Ropes.ContainsPattern(containsPatternS, containsPatternPattern, ParseInt(arg)) THEN
       Out.String("TRUE")
     ELSE
       Out.String("FALSE")
@@ -444,7 +444,7 @@ END ContainsPatternArgHandler;
 
 (* --- iterate S --- *)
 
-(* The Visitor RopeTool passes to Rope.Iterate: print the character and
+(* The Visitor RopeTool passes to Ropes.Iterate: print the character and
    keep going -- there is no early-stop scenario to demonstrate from a
    plain "print every character" command, so this always returns TRUE. *)
 PROCEDURE PrintCharVisitor(ch: CHAR): BOOLEAN;
@@ -455,23 +455,23 @@ END PrintCharVisitor;
 
 PROCEDURE IterateArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Rope.Iterate(Rope.FromString(arg), PrintCharVisitor);
+  Ropes.Iterate(Ropes.FromString(arg), PrintCharVisitor);
   RETURN TRUE
 END IterateArgHandler;
 
 (* --- iterator S --- *)
 
 (* Same output as iterate above (one character per line), but walking
-   with Rope.NewIterator's Get/Incr instead of Rope.Iterate's Visitor
-   callback -- the other half of Rope.Mod's two, separate iteration
+   with Ropes.NewIterator's Get/Incr instead of Ropes.Iterate's Visitor
+   callback -- the other half of Ropes.Mod's two, separate iteration
    APIs (see the module comment there), so each gets its own command
    rather than one standing in for both. *)
 PROCEDURE IteratorArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
-  VAR r: Rope.Rope; it: Rope.Iterator; i, len: LONGINT;
+  VAR r: Ropes.Rope; it: Ropes.Iterator; i, len: LONGINT;
 BEGIN
-  r := Rope.FromString(arg);
-  len := Rope.Length(r);
-  it := Rope.NewIterator(r, 0);
+  r := Ropes.FromString(arg);
+  len := Ropes.Length(r);
+  it := Ropes.NewIterator(r, 0);
   FOR i := 0 TO len - 1 DO
     Out.Char(it.Get()); Out.Ln;
     it.Incr
@@ -482,21 +482,21 @@ END IteratorArgHandler;
 (* --- lines FILE --- *)
 
 (* Prints a line's length, a space, and the line. *)
-PROCEDURE PrintLine(line: Rope.Rope);
+PROCEDURE PrintLine(line: Ropes.Rope);
 BEGIN
-  Out.Int(Rope.Length(line), 0); Out.Char(" ");
-  Rope.Write(line); Out.Ln
+  Out.Int(Ropes.Length(line), 0); Out.Char(" ");
+  Ropes.Write(line); Out.Ln
 END PrintLine;
 
 (* The one RopeTool command that reads input, demonstrating
-   Rope.ReadLine (standard input, when FILE is "-") and
-   Rope.ReadLineRider (anything else, opened with Files.Old): each line is
+   Ropes.ReadLine (standard input, when FILE is "-") and
+   Ropes.ReadLineRider (anything else, opened with Files.Old): each line is
    read whole, however long, without a buffer as long as the line. *)
 PROCEDURE LinesArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
-  VAR f: Files.File; rd: Files.Rider; line: Rope.Rope;
+  VAR f: Files.File; rd: Files.Rider; line: Ropes.Rope;
 BEGIN
   IF arg = "-" THEN
-    WHILE Rope.ReadLine(line) DO PrintLine(line) END
+    WHILE Ropes.ReadLine(line) DO PrintLine(line) END
   ELSE
     f := Files.Old(arg);
     IF f = NIL THEN
@@ -504,7 +504,7 @@ BEGIN
       HALT(1)
     END;
     Files.Set(rd, f, 0);
-    WHILE Rope.ReadLineRider(rd, line) DO PrintLine(line) END;
+    WHILE Ropes.ReadLineRider(rd, line) DO PrintLine(line) END;
     Files.Close(f)
   END;
   RETURN TRUE
@@ -512,27 +512,27 @@ END LinesArgHandler;
 
 (* --- readfile FILE --- *)
 
-(* Demonstrates Rope.ReadFile: the whole file, byte for byte.  Printed
-   escaped (Rope.Escape) so that what makes a byte-exact read different
+(* Demonstrates Ropes.ReadFile: the whole file, byte for byte.  Printed
+   escaped (Ropes.Escape) so that what makes a byte-exact read different
    from reading line by line -- a CR, a form feed, a 0X, whether there
    is a final line feed -- shows in the output rather than being lost to
    the terminal or to tests/run-tests.sh's trailing-white-space
    stripping. *)
 PROCEDURE ReadFileArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
-  VAR r: Rope.Rope;
+  VAR r: Ropes.Rope;
 BEGIN
-  IF ~Rope.ReadFile(arg, r) THEN
+  IF ~Ropes.ReadFile(arg, r) THEN
     Out.String('Error: cannot read "'); Out.String(arg); Out.String('"'); Out.Ln;
     HALT(1)
   END;
-  Out.Int(Rope.Length(r), 0); Out.Char(" ");
-  Rope.Write(Rope.Escape(r)); Out.Ln;
+  Out.Int(Ropes.Length(r), 0); Out.Char(" ");
+  Ropes.Write(Ropes.Escape(r)); Out.Ln;
   RETURN TRUE
 END ReadFileArgHandler;
 
 (* --- blit S SRCSTART DST DSTSTART LEN --- *)
 
-(* Demonstrates Rope.Blit, arguments in its own order: copies LEN
+(* Demonstrates Ropes.Blit, arguments in its own order: copies LEN
    characters of S from SRCSTART into DST at DSTSTART, then prints DST,
    so the characters of DST that Blit left alone show too.  DST is
    copied into an array of exactly its own length (not an
@@ -542,7 +542,7 @@ PROCEDURE BlitArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
   VAR i, n: LONGINT;
 BEGIN
   IF blitCount = 0 THEN
-    blitS := Rope.FromString(arg)
+    blitS := Ropes.FromString(arg)
   ELSIF blitCount = 1 THEN
     blitSrc := ParseInt(arg)
   ELSIF blitCount = 2 THEN
@@ -553,7 +553,7 @@ BEGIN
   ELSIF blitCount = 3 THEN
     blitDstStart := ParseInt(arg)
   ELSIF blitCount = 4 THEN
-    Rope.Blit(blitS, blitSrc, blitDst^, blitDstStart, ParseInt(arg));
+    Ropes.Blit(blitS, blitSrc, blitDst^, blitDstStart, ParseInt(arg));
     FOR i := 0 TO LEN(blitDst^) - 1 DO Out.Char(blitDst[i]) END;
     Out.Ln
   END;
@@ -570,7 +570,7 @@ PROCEDURE LowerString(s: ARRAY OF CHAR; VAR t: ARRAY OF CHAR);
   VAR i: LONGINT;
 BEGIN
   i := 0;
-  WHILE (i < LEN(s)) & (s[i] # 0X) & (i < LEN(t) - 1) DO t[i] := Rope.LowerChar(s[i]); INC(i) END;
+  WHILE (i < LEN(s)) & (s[i] # 0X) & (i < LEN(t) - 1) DO t[i] := Ropes.LowerChar(s[i]); INC(i) END;
   t[i] := 0X
 END LowerString;
 
@@ -579,13 +579,13 @@ END LowerString;
 PROCEDURE ReplaceArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF replaceCount = 0 THEN
-    replaceS := Rope.FromString(arg)
+    replaceS := Ropes.FromString(arg)
   ELSIF replaceCount = 1 THEN
     replacePos := ParseInt(arg)
   ELSIF replaceCount = 2 THEN
     replaceLen := ParseInt(arg)
   ELSIF replaceCount = 3 THEN
-    Rope.Write(Rope.Replace(replaceS, replacePos, replaceLen, Rope.FromString(arg))); Out.Ln
+    Ropes.Write(Ropes.Replace(replaceS, replacePos, replaceLen, Ropes.FromString(arg))); Out.Ln
   END;
   INC(replaceCount);
   RETURN TRUE
@@ -593,20 +593,20 @@ END ReplaceArgHandler;
 
 (* --- replacechar S POS CH --- *)
 
-(* Rope.ReplaceChar traps (HALT) for a POS outside S, as Fetch does; the
+(* Ropes.ReplaceChar traps (HALT) for a POS outside S, as Fetch does; the
    check here reports that as an error instead of a bare trap. *)
 PROCEDURE ReplaceCharArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF replaceCharCount = 0 THEN
-    replaceCharS := Rope.FromString(arg)
+    replaceCharS := Ropes.FromString(arg)
   ELSIF replaceCharCount = 1 THEN
     replaceCharPos := ParseInt(arg)
   ELSIF replaceCharCount = 2 THEN
-    IF (replaceCharPos < 0) OR (replaceCharPos >= Rope.Length(replaceCharS)) THEN
+    IF (replaceCharPos < 0) OR (replaceCharPos >= Ropes.Length(replaceCharS)) THEN
       Out.String("Error: POS out of range"); Out.Ln;
       HALT(1)
     END;
-    Rope.Write(Rope.ReplaceChar(replaceCharS, replaceCharPos, arg[0])); Out.Ln
+    Ropes.Write(Ropes.ReplaceChar(replaceCharS, replaceCharPos, arg[0])); Out.Ln
   END;
   INC(replaceCharCount);
   RETURN TRUE
@@ -617,9 +617,9 @@ END ReplaceCharArgHandler;
 PROCEDURE CountArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF countCount = 0 THEN
-    countS := Rope.FromString(arg)
+    countS := Ropes.FromString(arg)
   ELSIF countCount = 1 THEN
-    Out.Int(Rope.Count(countS, arg), 0); Out.Ln
+    Out.Int(Ropes.Count(countS, arg), 0); Out.Ln
   END;
   INC(countCount);
   RETURN TRUE
@@ -628,13 +628,13 @@ END CountArgHandler;
 (* --- countset S CHARS --- *)
 
 PROCEDURE CountSetArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
-  VAR set: Rope.CharSet;
+  VAR set: Ropes.CharSet;
 BEGIN
   IF countSetCount = 0 THEN
-    countSetS := Rope.FromString(arg)
+    countSetS := Ropes.FromString(arg)
   ELSIF countSetCount = 1 THEN
-    Rope.MakeCharSet(arg, set);
-    Out.Int(Rope.CountSet(countSetS, set), 0); Out.Ln
+    Ropes.MakeCharSet(arg, set);
+    Out.Int(Ropes.CountSet(countSetS, set), 0); Out.Ln
   END;
   INC(countSetCount);
   RETURN TRUE
@@ -645,11 +645,11 @@ END CountSetArgHandler;
 PROCEDURE IndexSetArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF indexSetCount = 0 THEN
-    indexSetS := Rope.FromString(arg)
+    indexSetS := Ropes.FromString(arg)
   ELSIF indexSetCount = 1 THEN
-    Rope.MakeCharSet(arg, indexSetSet)
+    Ropes.MakeCharSet(arg, indexSetSet)
   ELSIF indexSetCount = 2 THEN
-    Out.Int(Rope.IndexSet(indexSetS, indexSetSet, TRUE, ParseInt(arg)), 0); Out.Ln
+    Out.Int(Ropes.IndexSet(indexSetS, indexSetSet, TRUE, ParseInt(arg)), 0); Out.Ln
   END;
   INC(indexSetCount);
   RETURN TRUE
@@ -658,11 +658,11 @@ END IndexSetArgHandler;
 PROCEDURE RIndexSetArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF rIndexSetCount = 0 THEN
-    rIndexSetS := Rope.FromString(arg)
+    rIndexSetS := Ropes.FromString(arg)
   ELSIF rIndexSetCount = 1 THEN
-    Rope.MakeCharSet(arg, rIndexSetSet)
+    Ropes.MakeCharSet(arg, rIndexSetSet)
   ELSIF rIndexSetCount = 2 THEN
-    Out.Int(Rope.RIndexSet(rIndexSetS, rIndexSetSet, TRUE, ParseInt(arg)), 0); Out.Ln
+    Out.Int(Ropes.RIndexSet(rIndexSetS, rIndexSetSet, TRUE, ParseInt(arg)), 0); Out.Ln
   END;
   INC(rIndexSetCount);
   RETURN TRUE
@@ -673,9 +673,9 @@ END RIndexSetArgHandler;
 PROCEDURE NonBlankArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF nonBlankCount = 0 THEN
-    nonBlankS := Rope.FromString(arg)
+    nonBlankS := Ropes.FromString(arg)
   ELSIF nonBlankCount = 1 THEN
-    Out.Int(Rope.IndexNonBlank(nonBlankS, ParseInt(arg)), 0); Out.Ln
+    Out.Int(Ropes.IndexNonBlank(nonBlankS, ParseInt(arg)), 0); Out.Ln
   END;
   INC(nonBlankCount);
   RETURN TRUE
@@ -684,9 +684,9 @@ END NonBlankArgHandler;
 PROCEDURE RNonBlankArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF rNonBlankCount = 0 THEN
-    rNonBlankS := Rope.FromString(arg)
+    rNonBlankS := Ropes.FromString(arg)
   ELSIF rNonBlankCount = 1 THEN
-    Out.Int(Rope.RIndexNonBlank(rNonBlankS, ParseInt(arg)), 0); Out.Ln
+    Out.Int(Ropes.RIndexNonBlank(rNonBlankS, ParseInt(arg)), 0); Out.Ln
   END;
   INC(rNonBlankCount);
   RETURN TRUE
@@ -699,11 +699,11 @@ PROCEDURE FindTokenArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLE
   VAR start, len: LONGINT;
 BEGIN
   IF findTokenCount = 0 THEN
-    findTokenS := Rope.FromString(arg)
+    findTokenS := Ropes.FromString(arg)
   ELSIF findTokenCount = 1 THEN
-    Rope.MakeCharSet(arg, findTokenSet)
+    Ropes.MakeCharSet(arg, findTokenSet)
   ELSIF findTokenCount = 2 THEN
-    Rope.FindToken(findTokenS, findTokenSet, TRUE, ParseInt(arg), start, len);
+    Ropes.FindToken(findTokenS, findTokenSet, TRUE, ParseInt(arg), start, len);
     Out.Int(start, 0); Out.Char(" "); Out.Int(len, 0); Out.Ln
   END;
   INC(findTokenCount);
@@ -713,18 +713,18 @@ END FindTokenArgHandler;
 (* --- translate S FROM TO --- *)
 
 PROCEDURE TranslateArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
-  VAR m: Rope.Mapping;
+  VAR m: Ropes.Mapping;
 BEGIN
   IF translateCount = 0 THEN
-    translateS := Rope.FromString(arg)
+    translateS := Ropes.FromString(arg)
   ELSIF translateCount = 1 THEN
     COPY(arg, translateFrom)
   ELSIF translateCount = 2 THEN
-    IF ~Rope.MakeMapping(translateFrom, arg, m) THEN
+    IF ~Ropes.MakeMapping(translateFrom, arg, m) THEN
       Out.String("Error: FROM and TO must be the same length, with no character repeated in FROM"); Out.Ln;
       HALT(1)
     END;
-    Rope.Write(Rope.Translate(translateS, m)); Out.Ln
+    Ropes.Write(Ropes.Translate(translateS, m)); Out.Ln
   END;
   INC(translateCount);
   RETURN TRUE
@@ -735,9 +735,9 @@ END TranslateArgHandler;
 PROCEDURE CmpNoCaseArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF cmpNoCaseCount = 0 THEN
-    cmpNoCaseA := Rope.FromString(arg)
+    cmpNoCaseA := Ropes.FromString(arg)
   ELSIF cmpNoCaseCount = 1 THEN
-    Out.Int(Rope.CompareNoCase(cmpNoCaseA, Rope.FromString(arg)), 0); Out.Ln
+    Out.Int(Ropes.CompareNoCase(cmpNoCaseA, Ropes.FromString(arg)), 0); Out.Ln
   END;
   INC(cmpNoCaseCount);
   RETURN TRUE
@@ -749,28 +749,28 @@ END CmpNoCaseArgHandler;
    give, as the Ada Ropes package's rope_tool hash and hashci print. *)
 PROCEDURE HashArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Out.Int(Rope.Hash(Rope.FromString(arg)), 0); Out.Ln;
+  Out.Int(Ropes.Hash(Ropes.FromString(arg)), 0); Out.Ln;
   RETURN TRUE
 END HashArgHandler;
 
 PROCEDURE HashNoCaseArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
-  Out.Int(Rope.HashNoCase(Rope.FromString(arg)), 0); Out.Ln;
+  Out.Int(Ropes.HashNoCase(Ropes.FromString(arg)), 0); Out.Ln;
   RETURN TRUE
 END HashNoCaseArgHandler;
 
 (* --- findnocase S PATTERN FROM / countnocase S PATTERN --- *)
 
-(* Rope.FindMapped and Rope.CountMapped with Rope.LowerChar, and PATTERN
+(* Ropes.FindMapped and Ropes.CountMapped with Ropes.LowerChar, and PATTERN
    lowered first. *)
 PROCEDURE FindNoCaseArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOOLEAN;
 BEGIN
   IF findNoCaseCount = 0 THEN
-    findNoCaseS := Rope.FromString(arg)
+    findNoCaseS := Ropes.FromString(arg)
   ELSIF findNoCaseCount = 1 THEN
     LowerString(arg, findNoCasePattern)
   ELSIF findNoCaseCount = 2 THEN
-    Out.Int(Rope.FindMapped(findNoCaseS, findNoCasePattern, ParseInt(arg), Rope.LowerChar), 0); Out.Ln
+    Out.Int(Ropes.FindMapped(findNoCaseS, findNoCasePattern, ParseInt(arg), Ropes.LowerChar), 0); Out.Ln
   END;
   INC(findNoCaseCount);
   RETURN TRUE
@@ -780,10 +780,10 @@ PROCEDURE CountNoCaseArgHandler*(startIdx: INTEGER; VAR arg: ARRAY OF CHAR): BOO
   VAR pattern: ArgParser.String;
 BEGIN
   IF countNoCaseCount = 0 THEN
-    countNoCaseS := Rope.FromString(arg)
+    countNoCaseS := Ropes.FromString(arg)
   ELSIF countNoCaseCount = 1 THEN
     LowerString(arg, pattern);
-    Out.Int(Rope.CountMapped(countNoCaseS, pattern, Rope.LowerChar), 0); Out.Ln
+    Out.Int(Ropes.CountMapped(countNoCaseS, pattern, Ropes.LowerChar), 0); Out.Ln
   END;
   INC(countNoCaseCount);
   RETURN TRUE
@@ -845,9 +845,9 @@ BEGIN
     ArgParser.NewParser("tail S COUNT PAD  Print the last COUNT characters of S, padded with PAD if COUNT exceeds Length(S).", TailArgHandler);
   containsPatternParser := ArgParser.NewParser(
     "containspattern S PATTERN FROM  Print TRUE or FALSE: whether PATTERN occurs in S at or after FROM.", ContainsPatternArgHandler);
-  iterateParser := ArgParser.NewParser("iterate S  Print each character of S, one per line, via Rope.Iterate.", IterateArgHandler);
+  iterateParser := ArgParser.NewParser("iterate S  Print each character of S, one per line, via Ropes.Iterate.", IterateArgHandler);
   iteratorParser :=
-    ArgParser.NewParser("iterator S  Print each character of S, one per line, via Rope.NewIterator/Get/Incr.", IteratorArgHandler);
+    ArgParser.NewParser("iterator S  Print each character of S, one per line, via Ropes.NewIterator/Get/Incr.", IteratorArgHandler);
   linesParser := ArgParser.NewParser(
     "lines FILE  Read FILE (standard input if FILE is -) and print each line's length, a space, and the line.", LinesArgHandler);
   blitParser := ArgParser.NewParser(

@@ -10,10 +10,10 @@ VOCMAIN=-m
 OBERON_MODULES ?= /usr/local/sw/versions/oberon/include
 vpath %.Mod $(OBERON_MODULES)
 
-# make install copies Rope.Mod to the first directory in OBERON_MODULES, so
+# make install copies Ropes.Mod to the first directory in OBERON_MODULES, so
 # other repos can use it the same way.
 INSTALLDIR = $(firstword $(subst :, ,$(OBERON_MODULES)))
-MODULES = Rope.Mod
+MODULES = Ropes.Mod
 
 # Only the programs need ArgParser, so clean and install don't check for it.
 ifneq ($(if $(MAKECMDGOALS),$(filter-out clean install,$(MAKECMDGOALS)),all),)
@@ -32,8 +32,8 @@ all: $(PROGRAMS)
 # ArgParser.o) and is rebuilt when it changes.
 RopeTool: ArgParser.o
 
-# RopeTool and RopeTest both import Rope, so they need its symbol file too.
-RopeTool RopeTest: Rope.o
+# RopeTool and RopeTest both import Ropes, so they need its symbol file too.
+RopeTool RopeTest: Ropes.o
 
 
 %: %.Mod

@@ -1,6 +1,6 @@
 # Longer than ArgParser.MaxStringLength (4095): printed whole by
-# Rope.Write, leaf by leaf.  Before Rope.Write existed, RopeTool printed
-# through Rope.ToString into a MaxStringLength buffer, and this printed
+# Ropes.Write, leaf by leaf.  Before Ropes.Write existed, RopeTool printed
+# through Ropes.ToString into a MaxStringLength buffer, and this printed
 # only 4095 x's.
 program RopeTool
 arg make

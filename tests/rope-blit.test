@@ -1,4 +1,4 @@
-# Rope.Blit: "world" (5 characters of S from index 6) copied into DST at
+# Ropes.Blit: "world" (5 characters of S from index 6) copied into DST at
 # index 2, and the rest of DST left as it was.  The Ada Ropes port's
 # equivalent is rope_tool's copyslice (Ropes.Copy_Slice).
 program RopeTool

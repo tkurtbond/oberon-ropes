@@ -1,6 +1,6 @@
-# data/exact.bin read whole, byte for byte, by Rope.ReadFile: a CR
+# data/exact.bin read whole, byte for byte, by Ropes.ReadFile: a CR
 # before a line feed, a form feed, a 0X, and no line feed at the end --
-# each of which a line-by-line read (lines, via Rope.ReadLineRider) would
+# each of which a line-by-line read (lines, via Ropes.ReadLineRider) would
 # lose or change.  Printed as its length, a space, and its contents
 # escaped, so every byte shows.  The same data file and expected output
 # as the Ada Ropes port's rope-readfile.test.

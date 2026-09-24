@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Working notes for an agent in this repo, which holds `Rope.Mod`,
+Working notes for an agent in this repo, which holds `Ropes.Mod`,
 `RopeTest.Mod` and `RopeTool.Mod`, Oberon-2 modules built with voc
 (Vishap Oberon). They moved here from `~/Repos/Oberon/oberon-tools`.
 `RopeTool` imports `ArgParser`, which is shared between repos and
@@ -15,14 +15,14 @@ and 26.
 ```sh
 make                 # RopeTool and RopeTest, with voc
 make test            # build, then run tests/*.test; ends "N ok, M failed"
-make install         # copy Rope.Mod to the first directory in OBERON_MODULES
+make install         # copy Ropes.Mod to the first directory in OBERON_MODULES
 tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their real output
 ```
 
 - The `GNUmakefile` builds a library module with `voc -f -s` and a
   program with `voc -f -m`.
 - A new module that a program imports needs a `Program: Module.o` line
-  in the `GNUmakefile`, as `RopeTool RopeTest: Rope.o` does.
+  in the `GNUmakefile`, as `RopeTool RopeTest: Ropes.o` does.
 - A new program goes in `PROGRAMS` and in `.gitignore`.
 - **Shared modules such as `ArgParser.Mod` are not in this repo.** The
   `GNUmakefile` finds them through `vpath` in `OBERON_MODULES`, a
@@ -31,11 +31,11 @@ tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their rea
   `.sym`, `.c`, `.h` and `.o` here. Change `ArgParser.Mod` in its own
   repo, `~/Repos/Oberon/ArgParser`, run `make test` and `make install`
   there, then rebuild and test the repos that use it, `oberon-tools` too.
-- **After changing `Rope.Mod`, run `make test`, then `make install`**,
-  so other repos that get `Rope.Mod` from `OBERON_MODULES` see the
-  change. `make install` compiles `Rope.Mod` first and doesn't need
+- **After changing `Ropes.Mod`, run `make test`, then `make install`**,
+  so other repos that get `Ropes.Mod` from `OBERON_MODULES` see the
+  change. `make install` compiles `Ropes.Mod` first and doesn't need
   ArgParser. A `.Mod` here takes priority over the installed one, so
-  this repo always builds its own `Rope.Mod`.
+  this repo always builds its own `Ropes.Mod`.
 - The `Rope*` modules are voc-only; there is no poc build.
 - **`RopeTest` is the in-process check battery**, printing `ok -` or
   `not ok -` per check and then `N/M tests passed.`.
@@ -71,7 +71,7 @@ documentation.
 - **`SET` holds only 0 .. 31 (`MAX(SET)`)**, so a set of characters
   is a record, `CharSet` (`has: ARRAY 256 OF BOOLEAN`), not a `SET`.
 - **`Out` never flushes at program exit.** Output after the last line
-  feed is lost unless you call `Out.Flush`, which `Rope.Write` does.
+  feed is lost unless you call `Out.Flush`, which `Ropes.Write` does.
 - **`Out.String` stops at the first 0X.** Leaves have no terminator
   and may contain 0X, so write them with `Out.Char` or
   `Files.WriteBytes`.
@@ -87,10 +87,10 @@ documentation.
   `CopyWalk`. Plain assignment corrupts the outer scan. (Ada's record
   copy was deep, so the Ada port has no equivalent.)
 - A type-bound procedure called through a NIL receiver traps. The
-  empty rope is NIL, so `Rope`'s operations are plain procedures
+  empty rope is NIL, so `Ropes`' operations are plain procedures
   (`Cat(a, b)`), never `a.Cat(b)`.
 
-## `Rope.Mod` conventions
+## `Ropes.Mod` conventions
 
 - **Positions are 0-based.**
 - **Out-of-range arguments clamp.** They don't trap, except where a
@@ -110,7 +110,7 @@ documentation.
 - **I/O goes leaf by leaf, never through `ToString`.** `ToString`
   copies into a fixed `ARRAY OF CHAR` and silently truncates: an
   `ArgParser.MaxStringLength` buffer cut `RopeTool`'s output at 4095
-  characters. `RopeTool` prints every rope with `Rope.Write`.
+  characters. `RopeTool` prints every rope with `Ropes.Write`.
 - **Rider-based I/O, not `Files.File`-based.** The Rider carries the
   position; a caller wanting to append calls `Files.Set` first.
 - `Hash`/`HashNoCase` give exactly GNAT's `Ada.Strings.Hash` values,
@@ -120,7 +120,7 @@ documentation.
 ## Porting from the Ada `Ropes` package
 
 - **Translate the scenario, not the assertion.** Where Ada raises
-  `Index_Error`, `Rope.Mod` clamps or returns -1. Positions shift from
+  `Index_Error`, `Ropes.Mod` clamps or returns -1. Positions shift from
   1-based to 0-based. A `Slice (Low, High)` becomes
   `(start, len)`.
 - **Oberon has no overloading**, so an overload gets its own name,
@@ -130,7 +130,7 @@ documentation.
   20), and a `String` wrapper that would save only a `FromString`
   call. Record what wasn't ported and why, in the commit message and
   the Ada `PLAN.md`.
-- Update `Rope.Mod`'s module comment, which lists what came from the
+- Update `Ropes.Mod`'s module comment, which lists what came from the
   Ada port.
 
 ## Testing lessons

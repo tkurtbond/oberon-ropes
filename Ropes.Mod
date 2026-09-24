@@ -1,4 +1,4 @@
-MODULE Rope;
+MODULE Ropes;
 
 (* An immutable "rope": a tree of concatenations of flat character leaves,
    giving cheap concatenation and substring operations that scale to long
@@ -1820,7 +1820,7 @@ END WriteRider;
    character-level Unix read).  TRUE if a line was read -- including an
    empty one, which gives NIL, and a last line with no line feed after
    it; FALSE, with line = NIL, only at end of input with nothing left to
-   read.  So: WHILE Rope.ReadLine(line) DO ... END. *)
+   read.  So: WHILE Ropes.ReadLine(line) DO ... END. *)
 PROCEDURE ReadLine*(VAR line: Rope): BOOLEAN;
   VAR buf: ARRAY LineChunk OF CHAR; n: LONGINT; ch: CHAR; any: BOOLEAN;
 BEGIN
@@ -1901,4 +1901,4 @@ END WriteFile;
 
 BEGIN
   InitMinLength
-END Rope.
+END Ropes.
