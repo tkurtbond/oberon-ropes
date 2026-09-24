@@ -2,6 +2,20 @@ VOC=voc
 VOCFLAGS=-f
 VOCMAIN=-m
 
+# Modules shared between repos, such as ArgParser.Mod, are in the
+# directories in OBERON_MODULES (separated by colons), not here.  make
+# finds them through vpath, and voc writes their .sym, .c, .h and .o files
+# here, next to the programs that import them.  A .Mod here overrides one
+# there.
+OBERON_MODULES ?= /usr/local/sw/versions/oberon/include
+vpath %.Mod $(OBERON_MODULES)
+
+ifneq ($(MAKECMDGOALS),clean)
+ifeq ($(wildcard $(addsuffix /ArgParser.Mod,$(subst :, ,$(OBERON_MODULES)))),)
+$(error ArgParser.Mod is not in OBERON_MODULES ($(OBERON_MODULES)))
+endif
+endif
+
 PROGRAMS=RopeTool RopeTest
 
 .PHONY: all clean test test-verbose

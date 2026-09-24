@@ -2,8 +2,9 @@
 
 Working notes for an agent in this repo, which holds `Rope.Mod`,
 `RopeTest.Mod` and `RopeTool.Mod`, Oberon-2 modules built with voc
-(Vishap Oberon). They moved here from `~/Repos/Oberon/oberon-tools`,
-and `ArgParser.Mod` is a copy of the one there. These modules are
+(Vishap Oberon). They moved here from `~/Repos/Oberon/oberon-tools`.
+`RopeTool` imports `ArgParser`, which is shared between repos and
+lives in `OBERON_MODULES` (see below). These modules are
 the model for the Ada port at `~/Repos/Ada/Ropes`, and
 several of that port's additions have been ported back here. Its
 `PLAN.md` has a full entry for each backport: Phases 9, 10, 12, 14
@@ -22,6 +23,13 @@ tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their rea
 - A new module that a program imports needs a `Program: Module.o` line
   in the `GNUmakefile`, as `RopeTool RopeTest: Rope.o` does.
 - A new program goes in `PROGRAMS` and in `.gitignore`.
+- **Shared modules such as `ArgParser.Mod` are not in this repo.** The
+  `GNUmakefile` finds them through `vpath` in `OBERON_MODULES`, a
+  colon-separated list of directories (default
+  `/usr/local/sw/versions/oberon/include`), and voc builds their
+  `.sym`, `.c`, `.h` and `.o` here. Change `ArgParser.Mod` in its own
+  repo, `~/Repos/Oberon/ArgParser`, run `make test` and `make install`
+  there, then rebuild and test the repos that use it, `oberon-tools` too.
 - The `Rope*` modules are voc-only; there is no poc build.
 - **`RopeTest` is the in-process check battery**, printing `ok -` or
   `not ok -` per check and then `N/M tests passed.`.
