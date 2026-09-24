@@ -25,4 +25,5 @@ builds it here along with the programs.
 ```sh
 make                 # build RopeTool and RopeTest with voc
 make test            # build, then run the fixtures in tests/
+make install         # copy Rope.Mod to OBERON_MODULES, for other repos
 ```

@@ -10,7 +10,13 @@ VOCMAIN=-m
 OBERON_MODULES ?= /usr/local/sw/versions/oberon/include
 vpath %.Mod $(OBERON_MODULES)
 
-ifneq ($(MAKECMDGOALS),clean)
+# make install copies Rope.Mod to the first directory in OBERON_MODULES, so
+# other repos can use it the same way.
+INSTALLDIR = $(firstword $(subst :, ,$(OBERON_MODULES)))
+MODULES = Rope.Mod
+
+# Only the programs need ArgParser, so clean and install don't check for it.
+ifneq ($(if $(MAKECMDGOALS),$(filter-out clean install,$(MAKECMDGOALS)),all),)
 ifeq ($(wildcard $(addsuffix /ArgParser.Mod,$(subst :, ,$(OBERON_MODULES)))),)
 $(error ArgParser.Mod is not in OBERON_MODULES ($(OBERON_MODULES)))
 endif
@@ -18,7 +24,7 @@ endif
 
 PROGRAMS=RopeTool RopeTest
 
-.PHONY: all clean test test-verbose
+.PHONY: all clean test test-verbose install
 
 all: $(PROGRAMS)
 
@@ -45,6 +51,11 @@ test: all
 # Like test, but announces each test and its outcome as it goes.
 test-verbose: all
 	./tests/run-tests.sh -v
+
+# Install only a module that compiles.
+install: $(MODULES:.Mod=.o)
+	install -d $(INSTALLDIR)
+	install -m 644 $(MODULES) $(INSTALLDIR)
 
 clean:
 	-rm -fv $(PROGRAMS) *.c *.h *.o *.sym
