@@ -15,6 +15,7 @@ and 26.
 ```sh
 make                 # RopeTool and RopeTest, with voc
 make test            # build, then run tests/*.test; ends "N ok, M failed"
+make install         # copy Rope.Mod to the first directory in OBERON_MODULES
 tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their real output
 ```
 
@@ -30,6 +31,11 @@ tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their rea
   `.sym`, `.c`, `.h` and `.o` here. Change `ArgParser.Mod` in its own
   repo, `~/Repos/Oberon/ArgParser`, run `make test` and `make install`
   there, then rebuild and test the repos that use it, `oberon-tools` too.
+- **After changing `Rope.Mod`, run `make test`, then `make install`**,
+  so other repos that get `Rope.Mod` from `OBERON_MODULES` see the
+  change. `make install` compiles `Rope.Mod` first and doesn't need
+  ArgParser. A `.Mod` here takes priority over the installed one, so
+  this repo always builds its own `Rope.Mod`.
 - The `Rope*` modules are voc-only; there is no poc build.
 - **`RopeTest` is the in-process check battery**, printing `ok -` or
   `not ok -` per check and then `N/M tests passed.`.
