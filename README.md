@@ -1,5 +1,7 @@
 # A Rope Implementation for Oberon
 
+This software is developed with the aid of AI.
+
 `Ropes.Mod` is a rope (a string represented as a tree of pieces) for
 Oberon-2, built with voc (Vishap Oberon). `RopeTest.Mod` is its
 in-process self-test, and `RopeTool.Mod` is a command-line demo with a
