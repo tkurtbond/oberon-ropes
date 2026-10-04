@@ -29,4 +29,6 @@ make                 # build RopeTool and RopeTest with voc
 make test            # build, then run the fixtures in tests/
 make install         # copy Ropes.Mod to OBERON_MODULES, for other repos
 make uninstall       # remove it from OBERON_MODULES
+make -f pocGNUmakefile           # build them with poc instead, in poc-build/
+make -f pocGNUmakefile test-poc  # build with poc, then run the fixtures
 ```

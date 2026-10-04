@@ -1,0 +1,66 @@
+# Build the programs with poc, the Peaseblossom Oberon Compiler, as
+# installed (poc on PATH, with its runtime library poc-rtl):
+#
+#   make -f pocGNUmakefile
+#
+# poc builds in poc-build/, where the sources it needs are symlinked, for
+# two reasons. What it writes - each module's .sym (in text), .ll and .o,
+# and the programs - lands there and not next to the sources, where it
+# would overwrite voc's symbol files (voc then ignores them, "warning 306
+# inappropriate symbol file ignored", until they are rebuilt). And poc does
+# not see what voc leaves here: it compiles a Module.c beside Module.Mod as
+# the module's part in C, which voc's generated Ropes.c is not.
+#
+# ArgParser.Mod is shared with other repos, and is in a directory in
+# OBERON_MODULES (separated by colons); see GNUmakefile. Files, In, Out,
+# and the Err that ArgParser uses, come from poc's runtime library, so the
+# Err.Mod in OBERON_MODULES (voc's) is not linked into poc-build/.
+#
+# POC selects another poc, by an absolute path, since it runs in poc-build:
+#
+#   make -f pocGNUmakefile POC=$HOME/Repos/Oberon/Peaseblossom/build/bin/poc
+
+POC ?= poc
+
+OBERON_MODULES ?= /usr/local/sw/versions/oberon/include
+vpath %.Mod $(OBERON_MODULES)
+
+# Only RopeTool needs ArgParser, so clean doesn't check for it.
+ifneq ($(if $(MAKECMDGOALS),$(filter-out clean,$(MAKECMDGOALS)),all),)
+$(if $(wildcard $(addsuffix /ArgParser.Mod,$(subst :, ,$(OBERON_MODULES)))),,$(error ArgParser.Mod is not in OBERON_MODULES ($(OBERON_MODULES)); run make install in ~/Repos/Oberon/ArgParser))
+endif
+
+BUILDDIR = poc-build
+PROGRAMS = RopeTool RopeTest
+
+.PHONY: all clean test-poc test-verbose
+
+# Keep the symlinks to the sources instead of deleting them as intermediates.
+.SECONDARY:
+
+all: $(addprefix $(BUILDDIR)/,$(PROGRAMS))
+
+$(BUILDDIR):
+	mkdir -p $@
+
+$(BUILDDIR)/%.Mod: %.Mod | $(BUILDDIR)
+	ln -sf $(abspath $<) $@
+
+# RopeTool imports ArgParser and Ropes, RopeTest Ropes.
+$(BUILDDIR)/RopeTool: $(BUILDDIR)/ArgParser.Mod
+$(BUILDDIR)/RopeTool $(BUILDDIR)/RopeTest: $(BUILDDIR)/Ropes.Mod
+
+# poc compiles every module of a program from its source on every build.
+$(BUILDDIR)/%: $(BUILDDIR)/%.Mod
+	cd $(BUILDDIR) && $(POC) -o $* $*.Mod
+
+# Run the fixtures in tests/ against the poc-built programs and report how
+# many passed and failed; test-verbose announces each test as it goes.
+test-poc: all
+	BINDIR=$(BUILDDIR) ./tests/run-tests.sh
+
+test-verbose: all
+	BINDIR=$(BUILDDIR) ./tests/run-tests.sh -v
+
+clean:
+	-rm -rfv $(BUILDDIR)
