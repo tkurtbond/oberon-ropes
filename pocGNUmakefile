@@ -11,14 +11,18 @@
 # not see what voc leaves here: it compiles a Module.c beside Module.Mod as
 # the module's part in C, which voc's generated Ropes.c is not.
 #
-# ArgParser.Mod is shared with other repos, and is in a directory in
-# POC_OBERON_MODULES (separated by colons), where make -f pocGNUmakefile
-# install in ~/Repos/Oberon/ArgParser puts it. Files, In, Out, and the Err
-# that ArgParser uses, come from poc's runtime library, so no Err.Mod is
-# linked into poc-build/.
+# ArgParser is shared with other repos: RopeTool takes it from the poc
+# library argparser, in $(POC_OBERON_LIBRARIES)/argparser, where make -f
+# pocGNUmakefile install in ~/Repos/Oberon/ArgParser puts it. Only that
+# library's directory is on RopeTool's library path, so Ropes itself is
+# always compiled from this checkout, never taken from an installed ropes
+# library. Files, In, Out, and the Err that ArgParser uses, come from poc's
+# runtime library, so no Err.Mod is linked into poc-build/.
 #
-# make -f pocGNUmakefile install copies Ropes.Mod to the first directory in
-# POC_OBERON_MODULES, so other repos' poc builds can use it the same way.
+# make -f pocGNUmakefile install builds Ropes into the poc library ropes,
+# once for each size model, in $(POC_OBERON_LIBRARIES)/ropes (poc puts each
+# in <triple>/<O2|OC>/ there), where other repos' poc builds find it with
+# -library-path.
 #
 # POC selects another poc, by an absolute path, since it runs in poc-build:
 #
@@ -26,16 +30,21 @@
 
 POC ?= poc
 
-POC_OBERON_MODULES ?= /usr/local/sw/versions/oberon/poc/include
-vpath %.Mod $(POC_OBERON_MODULES)
+# Each library in its own directory under POC_OBERON_LIBRARIES, so a
+# program names only the libraries it uses.
+POC_OBERON_LIBRARIES ?= /usr/local/sw/versions/oberon/poc/lib
+ARGPARSER_LIB = $(POC_OBERON_LIBRARIES)/argparser
 
-INSTALLDIR = $(firstword $(subst :, ,$(POC_OBERON_MODULES)))
-MODULES = Ropes.Mod
+LIBRARY = ropes
+LIBDIR = $(POC_OBERON_LIBRARIES)/$(LIBRARY)
+MODULES = Ropes
+MODELS = O2 OC
+TRIPLE = $(shell $(POC) -version | sed -n 's/^target \([^ ]*\).*/\1/p')
 
 # Only RopeTool needs ArgParser, so clean, install and uninstall don't
-# check for it.
+# check for it. RopeTool is built under the default size model, -O2.
 ifneq ($(if $(MAKECMDGOALS),$(filter-out clean install uninstall,$(MAKECMDGOALS)),all),)
-$(if $(wildcard $(addsuffix /ArgParser.Mod,$(subst :, ,$(POC_OBERON_MODULES)))),,$(error ArgParser.Mod is not in POC_OBERON_MODULES ($(POC_OBERON_MODULES)); run make -f pocGNUmakefile install in ~/Repos/Oberon/ArgParser))
+$(if $(wildcard $(ARGPARSER_LIB)/*/O2/argparser.library),,$(error the argparser library is not in $(ARGPARSER_LIB); run make -f pocGNUmakefile install in ~/Repos/Oberon/ArgParser))
 endif
 
 BUILDDIR = poc-build
@@ -54,13 +63,15 @@ $(BUILDDIR):
 $(BUILDDIR)/%.Mod: %.Mod | $(BUILDDIR)
 	ln -sf $(abspath $<) $@
 
-# RopeTool imports ArgParser and Ropes, RopeTest Ropes.
-$(BUILDDIR)/RopeTool: $(BUILDDIR)/ArgParser.Mod
+# RopeTool imports ArgParser (from its library) and Ropes, RopeTest Ropes.
+$(BUILDDIR)/RopeTool: LIBPATH = -library-path $(ARGPARSER_LIB)
+$(BUILDDIR)/RopeTool: $(wildcard $(ARGPARSER_LIB)/*/O2/argparser.library)
 $(BUILDDIR)/RopeTool $(BUILDDIR)/RopeTest: $(BUILDDIR)/Ropes.Mod
 
-# poc compiles every module of a program from its source on every build.
+# poc compiles every module of a program from its source on every build,
+# except those a library on the library path has.
 $(BUILDDIR)/%: $(BUILDDIR)/%.Mod
-	cd $(BUILDDIR) && $(POC) -o $* $*.Mod
+	cd $(BUILDDIR) && $(POC) $(LIBPATH) -o $* $*.Mod
 
 # Run the fixtures in tests/ against the poc-built programs and report how
 # many passed and failed; test-verbose announces each test as it goes.
@@ -72,13 +83,22 @@ test-verbose: all
 
 # Install only a module that compiles: RopeTest builds Ropes without
 # ArgParser.
+# Built in poc-build/, away from voc's Ropes.c. A library records the poc
+# that built it, and another poc refuses it: install again after upgrading
+# poc.
 install: $(BUILDDIR)/RopeTest
-	install -d $(INSTALLDIR)
-	install -m 644 $(MODULES) $(INSTALLDIR)
+	install -d $(LIBDIR)
+	cd $(BUILDDIR) && for m in $(MODELS); do \
+	  $(POC) -$$m -output-dir $(abspath $(LIBDIR)) -library $(LIBRARY) $(MODULES:%=%.Mod) || exit 1; \
+	done
 
-# Remove what make install copied, and only that.
+# Remove what make install wrote, and only that.
 uninstall:
-	rm -f $(addprefix $(INSTALLDIR)/,$(MODULES))
+	for m in $(MODELS); do d=$(LIBDIR)/$(TRIPLE)/$$m; \
+	  rm -f $$d/lib$(LIBRARY).a $$d/lib$(LIBRARY).so $$d/$(LIBRARY).library \
+	    $(foreach x,$(MODULES),$$d/$(x).o $$d/$(x).ll $$d/$(x).sym $$d/$(x).owner); \
+	  rmdir $$d 2>/dev/null; true; \
+	done
 
 clean:
 	-rm -rfv $(BUILDDIR)

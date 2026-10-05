@@ -31,5 +31,5 @@ make install         # copy Ropes.Mod to VOC_OBERON_MODULES, for other repos
 make uninstall       # remove it from VOC_OBERON_MODULES
 make -f pocGNUmakefile           # build them with poc instead, in poc-build/
 make -f pocGNUmakefile test-poc  # build with poc, then run the fixtures
-make -f pocGNUmakefile install   # copy Ropes.Mod to POC_OBERON_MODULES
+make -f pocGNUmakefile install   # build the poc library ropes into POC_OBERON_LIBRARIES
 ```
