@@ -12,9 +12,13 @@
 # the module's part in C, which voc's generated Ropes.c is not.
 #
 # ArgParser.Mod is shared with other repos, and is in a directory in
-# OBERON_MODULES (separated by colons); see GNUmakefile. Files, In, Out,
-# and the Err that ArgParser uses, come from poc's runtime library, so the
-# Err.Mod in OBERON_MODULES (voc's) is not linked into poc-build/.
+# POC_OBERON_MODULES (separated by colons), where make -f pocGNUmakefile
+# install in ~/Repos/Oberon/ArgParser puts it. Files, In, Out, and the Err
+# that ArgParser uses, come from poc's runtime library, so no Err.Mod is
+# linked into poc-build/.
+#
+# make -f pocGNUmakefile install copies Ropes.Mod to the first directory in
+# POC_OBERON_MODULES, so other repos' poc builds can use it the same way.
 #
 # POC selects another poc, by an absolute path, since it runs in poc-build:
 #
@@ -22,18 +26,22 @@
 
 POC ?= poc
 
-OBERON_MODULES ?= /usr/local/sw/versions/oberon/include
-vpath %.Mod $(OBERON_MODULES)
+POC_OBERON_MODULES ?= /usr/local/sw/versions/oberon/poc/include
+vpath %.Mod $(POC_OBERON_MODULES)
 
-# Only RopeTool needs ArgParser, so clean doesn't check for it.
-ifneq ($(if $(MAKECMDGOALS),$(filter-out clean,$(MAKECMDGOALS)),all),)
-$(if $(wildcard $(addsuffix /ArgParser.Mod,$(subst :, ,$(OBERON_MODULES)))),,$(error ArgParser.Mod is not in OBERON_MODULES ($(OBERON_MODULES)); run make install in ~/Repos/Oberon/ArgParser))
+INSTALLDIR = $(firstword $(subst :, ,$(POC_OBERON_MODULES)))
+MODULES = Ropes.Mod
+
+# Only RopeTool needs ArgParser, so clean, install and uninstall don't
+# check for it.
+ifneq ($(if $(MAKECMDGOALS),$(filter-out clean install uninstall,$(MAKECMDGOALS)),all),)
+$(if $(wildcard $(addsuffix /ArgParser.Mod,$(subst :, ,$(POC_OBERON_MODULES)))),,$(error ArgParser.Mod is not in POC_OBERON_MODULES ($(POC_OBERON_MODULES)); run make -f pocGNUmakefile install in ~/Repos/Oberon/ArgParser))
 endif
 
 BUILDDIR = poc-build
 PROGRAMS = RopeTool RopeTest
 
-.PHONY: all clean test-poc test-verbose
+.PHONY: all clean test-poc test-verbose install uninstall
 
 # Keep the symlinks to the sources instead of deleting them as intermediates.
 .SECONDARY:
@@ -61,6 +69,16 @@ test-poc: all
 
 test-verbose: all
 	BINDIR=$(BUILDDIR) ./tests/run-tests.sh -v
+
+# Install only a module that compiles: RopeTest builds Ropes without
+# ArgParser.
+install: $(BUILDDIR)/RopeTest
+	install -d $(INSTALLDIR)
+	install -m 644 $(MODULES) $(INSTALLDIR)
+
+# Remove what make install copied, and only that.
+uninstall:
+	rm -f $(addprefix $(INSTALLDIR)/,$(MODULES))
 
 clean:
 	-rm -rfv $(BUILDDIR)

@@ -3,16 +3,16 @@ VOCFLAGS=-f
 VOCMAIN=-m
 
 # Modules shared between repos, such as ArgParser.Mod, are in the
-# directories in OBERON_MODULES (separated by colons), not here.  make
+# directories in VOC_OBERON_MODULES (separated by colons), not here.  make
 # finds them through vpath, and voc writes their .sym, .c, .h and .o files
 # here, next to the programs that import them.  A .Mod here overrides one
 # there.
-OBERON_MODULES ?= /usr/local/sw/versions/oberon/include
-vpath %.Mod $(OBERON_MODULES)
+VOC_OBERON_MODULES ?= /usr/local/sw/versions/oberon/voc/include/
+vpath %.Mod $(VOC_OBERON_MODULES)
 
-# make install copies Ropes.Mod to the first directory in OBERON_MODULES, so
+# make install copies Ropes.Mod to the first directory in VOC_OBERON_MODULES, so
 # other repos can use it the same way.
-INSTALLDIR = $(firstword $(subst :, ,$(OBERON_MODULES)))
+INSTALLDIR = $(firstword $(subst :, ,$(VOC_OBERON_MODULES)))
 MODULES = Ropes.Mod
 
 # Only the programs need ArgParser, and Err, which ArgParser uses and the
@@ -20,7 +20,7 @@ MODULES = Ropes.Mod
 # check for them.
 SHARED_MODULES = ArgParser.Mod Err.Mod
 ifneq ($(if $(MAKECMDGOALS),$(filter-out clean install uninstall,$(MAKECMDGOALS)),all),)
-$(foreach m,$(SHARED_MODULES),$(if $(wildcard $(addsuffix /$(m),$(subst :, ,$(OBERON_MODULES)))),,$(error $(m) is not in OBERON_MODULES ($(OBERON_MODULES)); run make install in ~/Repos/Oberon/ArgParser)))
+$(foreach m,$(SHARED_MODULES),$(if $(wildcard $(addsuffix /$(m),$(subst :, ,$(VOC_OBERON_MODULES)))),,$(error $(m) is not in VOC_OBERON_MODULES ($(VOC_OBERON_MODULES)); run make install in ~/Repos/Oberon/ArgParser)))
 endif
 
 PROGRAMS=RopeTool RopeTest

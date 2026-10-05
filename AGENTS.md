@@ -4,7 +4,7 @@ Working notes for an agent in this repo, which holds `Ropes.Mod`,
 `RopeTest.Mod` and `RopeTool.Mod`, Oberon-2 modules built with voc
 (Vishap Oberon). They moved here from `~/Repos/Oberon/oberon-tools`.
 `RopeTool` imports `ArgParser`, which is shared between repos and
-lives in `OBERON_MODULES` (see below), as does `Err`, which
+lives in `VOC_OBERON_MODULES` (see below), as does `Err`, which
 `ArgParser` uses to write its errors to standard error. These modules are
 the model for the Ada port at `~/Repos/Ada/Ropes`, and
 several of that port's additions have been ported back here. Its
@@ -16,9 +16,10 @@ and 26.
 ```sh
 make                 # RopeTool and RopeTest, with voc
 make test            # build, then run tests/*.test; ends "N ok, M failed"
-make install         # copy Ropes.Mod to the first directory in OBERON_MODULES
+make install         # copy Ropes.Mod to the first directory in VOC_OBERON_MODULES
 make uninstall       # remove it from there
 make -f pocGNUmakefile test-poc   # build with the installed poc in poc-build/, then test
+make -f pocGNUmakefile install    # copy Ropes.Mod to the first directory in POC_OBERON_MODULES
 tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their real output
 ```
 
@@ -29,30 +30,33 @@ tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their rea
 - A new program goes in `PROGRAMS` and in `.gitignore`.
 - **Shared modules such as `ArgParser.Mod` and `Err.Mod` are not in
   this repo.** The `GNUmakefile` finds them through `vpath` in
-  `OBERON_MODULES`, a colon-separated list of directories (default
-  `/usr/local/sw/versions/oberon/include`), and voc builds their
+  `VOC_OBERON_MODULES`, a colon-separated list of directories (default
+  `/usr/local/sw/versions/oberon/voc/include`), and voc builds their
   `.sym`, `.c`, `.h` and `.o` here, `Err` before `ArgParser`. If one
   is missing, make stops and says so. Both are in their own repo,
   `~/Repos/Oberon/ArgParser`; change them there, run `make test` and
   `make install` there, then rebuild and test the repos that use them,
   `oberon-tools` too.
 - **After changing `Ropes.Mod`, run `make test`, then `make install`**,
-  so other repos that get `Ropes.Mod` from `OBERON_MODULES` see the
+  so other repos that get `Ropes.Mod` from `VOC_OBERON_MODULES` see the
   change. `make install` compiles `Ropes.Mod` first and doesn't need
   ArgParser. A `.Mod` here takes priority over the installed one, so
   this repo always builds its own `Ropes.Mod`.
 - **`make uninstall` removes only `Ropes.Mod`** from the first
-  directory in `OBERON_MODULES`, and succeeds if it is already gone.
+  directory in `VOC_OBERON_MODULES`, and succeeds if it is already gone.
   Like `make clean` and `make install`, it doesn't need ArgParser.
-  `make clean` never touches `OBERON_MODULES`: it removes only the
+  `make clean` never touches `VOC_OBERON_MODULES`: it removes only the
   build files here, including `ArgParser`'s and `Err`'s.
 - **`pocGNUmakefile` builds the programs with the installed poc**
   (`POC` for another) in `poc-build/`, where the sources are
   symlinked, so poc's own symbol files don't overwrite voc's and poc
   doesn't take voc's generated `.c` files for modules' C parts. poc
-  takes `Files`, `In`, `Out` and `Err` from its runtime library. A new
-  program or module needs its lines there as well as in the
-  `GNUmakefile`.
+  takes `Files`, `In`, `Out` and `Err` from its runtime library. It
+  finds `ArgParser.Mod` in `POC_OBERON_MODULES` (default
+  `/usr/local/sw/versions/oberon/poc/include`), where ArgParser's
+  `make -f pocGNUmakefile install` puts it; its own `install` copies
+  `Ropes.Mod` there, and `uninstall` removes it. A new program or
+  module needs its lines there as well as in the `GNUmakefile`.
 - **`RopeTest` is the in-process check battery**, printing `ok -` or
   `not ok -` per check and then `N/M tests passed.`.
   `tests/rope-selftest.test` runs it and holds the full check list.

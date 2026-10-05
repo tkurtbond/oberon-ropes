@@ -20,15 +20,16 @@ It moved here, with its history, from
 own repo,
 [`oberon-argparser`](https://github.com/tkurtbond/oberon-argparser),
 where `make install` installs it, so it isn't here: the `GNUmakefile`
-finds it in `OBERON_MODULES`, a colon-separated list of directories
-(default `/usr/local/sw/versions/oberon/include`), and
+finds it in `VOC_OBERON_MODULES`, a colon-separated list of directories
+(default `/usr/local/sw/versions/oberon/voc/include`), and
 builds it here along with the programs.
 
 ```sh
 make                 # build RopeTool and RopeTest with voc
 make test            # build, then run the fixtures in tests/
-make install         # copy Ropes.Mod to OBERON_MODULES, for other repos
-make uninstall       # remove it from OBERON_MODULES
+make install         # copy Ropes.Mod to VOC_OBERON_MODULES, for other repos
+make uninstall       # remove it from VOC_OBERON_MODULES
 make -f pocGNUmakefile           # build them with poc instead, in poc-build/
 make -f pocGNUmakefile test-poc  # build with poc, then run the fixtures
+make -f pocGNUmakefile install   # copy Ropes.Mod to POC_OBERON_MODULES
 ```
