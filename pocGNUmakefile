@@ -83,20 +83,26 @@ test-verbose: all
 
 # Install only a module that compiles: RopeTest builds Ropes without
 # ArgParser.
-# Built in poc-build/, away from voc's Ropes.c. A library records the poc
-# that built it, and another poc refuses it: install again after upgrading
-# poc.
+# Built in poc-build/lib/, away from voc's Ropes.c, then copied with poc
+# -install-library, which copies only what a program needs: the archive,
+# the shared object, the manifest, and each module's .sym and .owner (not
+# the .o and .ll that -library also writes). A library records the poc
+# that built it, and another poc refuses it: install again after
+# upgrading poc.
 install: $(BUILDDIR)/RopeTest
-	install -d $(LIBDIR)
 	cd $(BUILDDIR) && for m in $(MODELS); do \
-	  $(POC) -$$m -output-dir $(abspath $(LIBDIR)) -library $(LIBRARY) $(MODULES:%=%.Mod) || exit 1; \
+	  $(POC) -$$m -output-dir lib -library $(LIBRARY) $(MODULES:%=%.Mod) || exit 1; \
+	done
+	install -d $(LIBDIR)
+	for m in $(MODELS); do \
+	  $(POC) -$$m -library-path $(BUILDDIR)/lib -output-dir $(LIBDIR) -install-library $(LIBRARY) || exit 1; \
 	done
 
 # Remove what make install wrote, and only that.
 uninstall:
 	for m in $(MODELS); do d=$(LIBDIR)/$(TRIPLE)/$$m; \
 	  rm -f $$d/lib$(LIBRARY).a $$d/lib$(LIBRARY).so $$d/$(LIBRARY).library \
-	    $(foreach x,$(MODULES),$$d/$(x).o $$d/$(x).ll $$d/$(x).sym $$d/$(x).owner); \
+	    $(foreach x,$(MODULES),$$d/$(x).sym $$d/$(x).owner); \
 	  rmdir $$d 2>/dev/null; true; \
 	done
 
