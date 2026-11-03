@@ -12,43 +12,54 @@
 # the module's part in C, which voc's generated Ropes.c is not.
 #
 # ArgParser is shared with other repos: RopeTool takes it from the poc
-# library argparser, in $(POC_OBERON_LIBRARIES)/argparser, where make -f
-# pocGNUmakefile install in ~/Repos/Oberon/ArgParser puts it. Only that
-# library's directory is on RopeTool's library path, so Ropes itself is
-# always compiled from this checkout, never taken from an installed ropes
-# library. Files, In, Out, and the Err that ArgParser uses, come from poc's
-# runtime library, so no Err.Mod is linked into poc-build/.
+# library argparser, in $(POCLIBDIR), where make -f pocGNUmakefile install
+# in ~/Repos/Oberon/ArgParser puts it. Files, In, Out, and the Err that
+# ArgParser uses, come from poc's runtime library, so no Err.Mod is linked
+# into poc-build/.
 #
-# make -f pocGNUmakefile install builds Ropes into the poc library ropes,
-# once for each size model, in $(POC_OBERON_LIBRARIES)/ropes (poc puts each
-# in <triple>/<O2|OC>/ there), where other repos' poc builds find it with
-# -library-path.
+# The programs take Ropes from the library built in poc-build/lib/, so the
+# tests test this checkout and what make install would install. $(POCLIBDIR)
+# may hold an installed ropes too, and a module in a library on the library
+# path is never compiled, so poc-build/lib/ comes first on RopeTool's library
+# path. poc warns that it hides the installed one; that's expected.
+#
+# make -f pocGNUmakefile install installs the library ropes in $(POCLIBDIR),
+# ~/.local/lib/poc by default, for each variant: a size model, with or
+# without debug information. poc puts each in <triple>/<variant>/ there.
 #
 # POC selects another poc, by an absolute path, since it runs in poc-build:
 #
 #   make -f pocGNUmakefile POC=$HOME/Repos/Oberon/Peaseblossom/build/bin/poc
 
 POC ?= poc
+PREFIX ?= $(HOME)/.local
+POCLIBDIR ?= $(PREFIX)/lib/poc
+MODELS ?= O2 OC
+VARIANTS := $(MODELS) $(addsuffix -g,$(MODELS))
 
-# Each library in its own directory under POC_OBERON_LIBRARIES, so a
-# program names only the libraries it uses.
-POC_OBERON_LIBRARIES ?= /usr/local/sw/versions/oberon/poc/lib
-ARGPARSER_LIB = $(POC_OBERON_LIBRARIES)/argparser
+# An installed library on POC_LIBRARY_PATH would be taken in place of this
+# checkout's source, or would stop the build if another poc wrote it.
+unexport POC_LIBRARY_PATH
 
 LIBRARY = ropes
-LIBDIR = $(POC_OBERON_LIBRARIES)/$(LIBRARY)
 MODULES = Ropes
-MODELS = O2 OC
-TRIPLE = $(shell $(POC) -version | sed -n 's/^target \([^ ]*\).*/\1/p')
+BUILDDIR = poc-build
+LIBDIR = $(BUILDDIR)/lib
+PROGRAMS = RopeTool RopeTest
+
+# $(call variant-flags,<variant>) gives poc's flags for a variant: O2-g gives
+# -O2 -g.
+variant-flags = -$(firstword $(subst -, ,$(1))) $(if $(filter %-g,$(1)),-g)
+
+# A library records the poc that built it, and another poc refuses it, so
+# each library depends on poc itself.
+POCBIN := $(shell command -v $(POC))
 
 # Only RopeTool needs ArgParser, so clean, install and uninstall don't
 # check for it. RopeTool is built under the default size model, -O2.
 ifneq ($(if $(MAKECMDGOALS),$(filter-out clean install uninstall,$(MAKECMDGOALS)),all),)
-$(if $(wildcard $(ARGPARSER_LIB)/*/O2/argparser.library),,$(error the argparser library is not in $(ARGPARSER_LIB); run make -f pocGNUmakefile install in ~/Repos/Oberon/ArgParser))
+$(if $(wildcard $(POCLIBDIR)/*/O2/argparser.library),,$(error the argparser library is not in $(POCLIBDIR); run make -f pocGNUmakefile install in ~/Repos/Oberon/ArgParser))
 endif
-
-BUILDDIR = poc-build
-PROGRAMS = RopeTool RopeTest
 
 .PHONY: all clean test-poc test-verbose install uninstall
 
@@ -63,13 +74,18 @@ $(BUILDDIR):
 $(BUILDDIR)/%.Mod: %.Mod | $(BUILDDIR)
 	ln -sf $(abspath $<) $@
 
-# RopeTool imports ArgParser (from its library) and Ropes, RopeTest Ropes.
-$(BUILDDIR)/RopeTool: LIBPATH = -library-path $(ARGPARSER_LIB)
-$(BUILDDIR)/RopeTool: $(wildcard $(ARGPARSER_LIB)/*/O2/argparser.library)
-$(BUILDDIR)/RopeTool $(BUILDDIR)/RopeTest: $(BUILDDIR)/Ropes.Mod
+# Built in poc-build/lib/, away from voc's Ropes.c.
+$(LIBDIR)/$(LIBRARY)-%.stamp: $(MODULES:%=$(BUILDDIR)/%.Mod) $(POCBIN)
+	mkdir -p $(LIBDIR)
+	cd $(BUILDDIR) && $(POC) $(call variant-flags,$*) -output-dir lib -library $(LIBRARY) $(MODULES:%=%.Mod)
+	touch $@
 
-# poc compiles every module of a program from its source on every build,
-# except those a library on the library path has.
+# RopeTool imports ArgParser and Ropes, RopeTest Ropes.
+$(BUILDDIR)/RopeTool: LIBPATH = -library-path lib -library-path $(abspath $(POCLIBDIR))
+$(BUILDDIR)/RopeTest: LIBPATH = -library-path lib
+$(BUILDDIR)/RopeTool: $(wildcard $(POCLIBDIR)/*/O2/argparser.library)
+$(BUILDDIR)/RopeTool $(BUILDDIR)/RopeTest: $(LIBDIR)/$(LIBRARY)-O2.stamp
+
 $(BUILDDIR)/%: $(BUILDDIR)/%.Mod
 	cd $(BUILDDIR) && $(POC) $(LIBPATH) -o $* $*.Mod
 
@@ -81,30 +97,39 @@ test-poc: all
 test-verbose: all
 	BINDIR=$(BUILDDIR) ./tests/run-tests.sh -v
 
-# Install only a module that compiles: RopeTest builds Ropes without
-# ArgParser.
-# Built in poc-build/lib/, away from voc's Ropes.c, then copied with poc
-# -install-library, which copies only what a program needs: the archive,
-# the shared object, the manifest, and each module's .sym and .owner (not
-# the .o and .ll that -library also writes). A library records the poc
-# that built it, and another poc refuses it: install again after
-# upgrading poc.
-install: $(BUILDDIR)/RopeTest
-	cd $(BUILDDIR) && for m in $(MODELS); do \
-	  $(POC) -$$m -output-dir lib -library $(LIBRARY) $(MODULES:%=%.Mod) || exit 1; \
-	done
-	install -d $(LIBDIR)
-	for m in $(MODELS); do \
-	  $(POC) -$$m -library-path $(BUILDDIR)/lib -output-dir $(LIBDIR) -install-library $(LIBRARY) || exit 1; \
-	done
+# install copies the library, in each variant, into $(POCLIBDIR) with poc
+# -install-library, which copies only what a program needs: the archive, the
+# shared object, the manifest, and each module's .sym and .owner (not the .o
+# and .ll that -library also writes). A program then finds it with
+# -library-path $(POCLIBDIR). Install again after upgrading poc.
+define newline
 
-# Remove what make install wrote, and only that.
+
+endef
+
+install: $(foreach v,$(VARIANTS),$(LIBDIR)/$(LIBRARY)-$(v).stamp)
+	$(foreach v,$(VARIANTS),$(POC) $(call variant-flags,$(v)) \
+	  -library-path $(LIBDIR) -install-library $(LIBRARY) -output-dir $(POCLIBDIR)$(newline))
+
+# uninstall removes from $(POCLIBDIR)/<triple>/<variant> what install put
+# there. It leaves other libraries' files alone, and removes a directory only
+# when nothing is left in it. The triple is poc's target.
+INSTALLED_FILES := $(LIBRARY).library lib$(LIBRARY).a lib$(LIBRARY).so lib$(LIBRARY).so.0.0 \
+  $(foreach m,$(MODULES),$(m).sym $(m).owner)
+
 uninstall:
-	for m in $(MODELS); do d=$(LIBDIR)/$(TRIPLE)/$$m; \
-	  rm -f $$d/lib$(LIBRARY).a $$d/lib$(LIBRARY).so $$d/$(LIBRARY).library \
-	    $(foreach x,$(MODULES),$$d/$(x).sym $$d/$(x).owner); \
-	  rmdir $$d 2>/dev/null; true; \
-	done
+	@triple=$$($(POC) -version | sed -n 's/^target \([^ ]*\).*/\1/p'); \
+	if [ -z "$$triple" ]; then echo "uninstall: cannot get the target from $(POC) -version" >&2; exit 1; fi; \
+	for v in $(VARIANTS); do \
+	  dir=$(POCLIBDIR)/$$triple/$$v; \
+	  if [ -d "$$dir" ]; then \
+	    echo "cd $$dir && rm -f $(INSTALLED_FILES)"; \
+	    (cd "$$dir" && rm -f $(INSTALLED_FILES)) || exit 1; \
+	    rmdir "$$dir" 2>/dev/null || :; \
+	  fi; \
+	done; \
+	rmdir $(POCLIBDIR)/$$triple 2>/dev/null || :; \
+	rmdir $(POCLIBDIR) 2>/dev/null || :
 
 clean:
 	-rm -rfv $(BUILDDIR)

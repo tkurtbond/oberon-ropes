@@ -19,7 +19,7 @@ make test            # build, then run tests/*.test; ends "N ok, M failed"
 make install         # copy Ropes.Mod to the first directory in VOC_OBERON_MODULES
 make uninstall       # remove it from there
 make -f pocGNUmakefile test-poc   # build with the installed poc in poc-build/, then test
-make -f pocGNUmakefile install    # build the poc library ropes (-O2 and -OC) into POC_OBERON_LIBRARIES/ropes
+make -f pocGNUmakefile install    # build the poc library ropes (-O2 and -OC, with and without -g) into POCLIBDIR
 tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their real output
 ```
 
@@ -52,15 +52,19 @@ tests/run-tests.sh -o rope-hash rope-count   # selected fixtures, with their rea
   symlinked, so poc's own symbol files don't overwrite voc's and poc
   doesn't take voc's generated `.c` files for modules' C parts. poc
   takes `Files`, `In`, `Out` and `Err` from its runtime library. It
-  takes ArgParser from the poc library `argparser`, in `argparser/`
-  under `POC_OBERON_LIBRARIES` (default `/usr/local/sw/versions/oberon/poc/lib`), where ArgParser's `make -f pocGNUmakefile
-  install` puts it. Only that directory is on the library path, so
-  Ropes is always compiled from this checkout, never taken from the
-  installed `ropes` library. Its own `install` builds the library
-  `ropes`, for `-O2` and `-OC`, in `ropes/` there, and `uninstall`
-  removes what it wrote. Install again after upgrading poc: poc refuses
-  a library another version built. A new program or
-  module needs its lines there as well as in the `GNUmakefile`.
+  takes ArgParser from the poc library `argparser`, in `POCLIBDIR`
+  (default `$(PREFIX)/lib/poc`, with `PREFIX` default `~/.local`),
+  where ArgParser's `make -f pocGNUmakefile install` puts it. `POCLIBDIR`
+  may hold an installed `ropes` too, and poc never compiles a module
+  that a library on the library path has, so the programs take Ropes
+  from the library built in `poc-build/lib/`, which comes first on the
+  library path, and the makefile unexports `POC_LIBRARY_PATH`. poc warns
+  that this hides the installed library; that's expected. `install`
+  installs `ropes` in `POCLIBDIR` for `-O2` and `-OC`, with and without
+  `-g`, and `uninstall` removes what it wrote. Install again after
+  upgrading poc: poc refuses a library another version built. A new
+  program or module needs its lines there as well as in the
+  `GNUmakefile`.
 - **`RopeTest` is the in-process check battery**, printing `ok -` or
   `not ok -` per check and then `N/M tests passed.`.
   `tests/rope-selftest.test` runs it and holds the full check list.
