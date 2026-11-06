@@ -1,0 +1,2 @@
+* TODO Check how the oberon-2 programs that use Ropes have extend it for convenience.
+For exmaple: pobesm2_fmt2 and besm2_cb_po both have Besm2Text.Mod.
