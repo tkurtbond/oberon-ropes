@@ -260,6 +260,34 @@ BEGIN
   Check(Ropes.Make(-1, "z") = NIL, "Make of negative length is NIL");
 END CheckFromCharAndMake;
 
+(* FromChars and FromSubchars take the buffer by reference.  The big one
+   is 16 MB, twice the usual stack, which a value parameter (FromString's)
+   would be copied onto, and crash. *)
+PROCEDURE CheckFromChars;
+  CONST Big = 16 * 1024 * 1024;
+  VAR r: Ropes.Rope; s: ARRAY 16 OF CHAR; big: POINTER TO ARRAY OF CHAR;
+    i: LONGINT;
+BEGIN
+  s := "hello world";
+  Check(StrEq(Ropes.FromChars(s), "hello world"), "FromChars: up to the 0X");
+  s := "";
+  Check(Ropes.FromChars(s) = NIL, "FromChars of an empty string is NIL");
+  s := "hello world";
+  r := Ropes.FromSubchars(s, 6, 5);
+  Check(StrEq(r, "world"), "FromSubchars: content");
+  Check(Ropes.FromSubchars(s, 0, 0) = NIL, "FromSubchars of length 0 is NIL");
+
+  NEW(big, Big);
+  FOR i := 0 TO Big - 2 DO big[i] := CHR(ORD("a") + i MOD 26) END;
+  big[Big - 1] := 0X;
+  r := Ropes.FromChars(big^);
+  Check((Ropes.Length(r) = Big - 1) & (Ropes.Fetch(r, Big - 2) = big[Big - 2]),
+    "FromChars of a 16 MB buffer");
+  r := Ropes.FromSubchars(big^, 1, Big - 2);
+  Check((Ropes.Length(r) = Big - 2) & (Ropes.Fetch(r, 0) = "b"),
+    "FromSubchars of a 16 MB buffer")
+END CheckFromChars;
+
 PROCEDURE CheckHeadTail;
   VAR r: Ropes.Rope;
 BEGIN
@@ -1184,6 +1212,7 @@ BEGIN
   CheckCompareFindRepeat;
   CheckStressAndBalance;
   CheckFromCharAndMake;
+  CheckFromChars;
   CheckHeadTail;
   CheckOverflowGuard;
   CheckMap;

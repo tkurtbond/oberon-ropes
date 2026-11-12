@@ -43,6 +43,10 @@ MODULE Ropes;
    RFindMapped and CountMapped; CompareString/EqualString;
    CompareNoCase, EqualNoCase and HashNoCase; and Hash.
 
+   FromChars and FromSubchars are FromString and FromSubstring for a big
+   buffer: they take it by reference, where a value open array is copied
+   onto the stack, and one of a few megabytes overflows it.
+
    This is voc-only for now: it is not built by pocGNUmakefile. *)
 
 IMPORT Files, In, Out;
@@ -208,8 +212,11 @@ BEGIN
   RETURN a + b
 END AddLen;
 
-(* The length of s up to its terminating 0X, or LEN(s) if it has none. *)
-PROCEDURE StrLen(s: ARRAY OF CHAR): LONGINT;
+(* The length of s up to its terminating 0X, or LEN(s) if it has none.
+   s is VAR, here and in NewLeaf, only so that it is not copied: a value
+   open array is copied onto the stack, by voc and poc both, and a big
+   one overflows it. *)
+PROCEDURE StrLen(VAR s: ARRAY OF CHAR): LONGINT;
   VAR len: LONGINT;
 BEGIN
   len := 0;
@@ -235,7 +242,7 @@ BEGIN
 END LowerChar;
 
 (* A new leaf copying src[start .. start + len - 1].  len must be > 0. *)
-PROCEDURE NewLeaf(src: ARRAY OF CHAR; start, len: LONGINT): Leaf;
+PROCEDURE NewLeaf(VAR src: ARRAY OF CHAR; start, len: LONGINT): Leaf;
   VAR leaf: Leaf; i: LONGINT;
 BEGIN
   NEW(leaf);
@@ -1463,9 +1470,28 @@ END FromString;
 PROCEDURE FromSubstring*(s: ARRAY OF CHAR; start, len: LONGINT): Rope;
 BEGIN
   IF len <= 0 THEN RETURN NIL END;
-  IF (start < 0) OR (start + len > LEN(s)) THEN HALT(1) END;
+  IF (start < 0) OR (len > LEN(s) - start) THEN HALT(1) END;
   RETURN NewLeaf(s, start, len)
 END FromSubstring;
+
+(* FromString and FromSubstring for a big buffer: s is passed by
+   reference, not copied, so it must be a variable, not a literal.
+   FromString's s is a value parameter, which voc and poc both copy onto
+   the stack; a buffer of a few megabytes overflows an 8 MB stack. *)
+PROCEDURE FromChars*(VAR s: ARRAY OF CHAR): Rope;
+  VAR len: LONGINT;
+BEGIN
+  len := StrLen(s);
+  IF len = 0 THEN RETURN NIL END;
+  RETURN NewLeaf(s, 0, len)
+END FromChars;
+
+PROCEDURE FromSubchars*(VAR s: ARRAY OF CHAR; start, len: LONGINT): Rope;
+BEGIN
+  IF len <= 0 THEN RETURN NIL END;
+  IF (start < 0) OR (len > LEN(s) - start) THEN HALT(1) END;
+  RETURN NewLeaf(s, start, len)
+END FromSubchars;
 
 (* n concatenated copies of r, built with O(log n) concatenations by
    binary doubling.  NIL if r is NIL or n <= 0. *)
