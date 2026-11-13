@@ -3,9 +3,12 @@
 This software is developed with the aid of AI.
 
 `Ropes.Mod` is a rope (a string represented as a tree of pieces) for
-Oberon-2, built with voc (Vishap Oberon). `RopeTest.Mod` is its
-in-process self-test, and `RopeTool.Mod` is a command-line demo with a
-command for each exported operation.
+Oberon-2, built with [voc (Vishap
+Oberon)](https://github.com/vishapoberon/compiler) or [poc
+(Peaseblossom
+Oberon)](https://github.com/tkurtbond/peaseblossom). `RopeTest.Mod` is
+its in-process self-test, and `RopeTool.Mod` is a command-line demo
+with a command for each exported operation.
 
 `Ropes.Mod` is the model for the Ada port,
 [`Ropes`](https://github.com/tkurtbond/Ropes), and many of that port's
