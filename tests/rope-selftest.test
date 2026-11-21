@@ -253,6 +253,7 @@ ok - Translate: many to one
 ok - Translate of NIL is NIL
 ok - CompareString: every prefix, both ways, agrees with Compare
 ok - CompareNoCase, EqualNoCase: every pair of prefixes agrees with Compare on LowercaseAscii
+ok - Equal: every pair of prefixes, differently chunked or lowered, is equal only to itself
 ok - EqualString
 ok - EqualNoCase: across case
 ok - Hash: GNAT's Ada.Strings.Hash value
@@ -262,4 +263,4 @@ ok - Hash: distinguishes case
 ok - HashNoCase: the same for any case
 ok - Hash of NIL is 0
 
-248/248 tests passed.
+249/249 tests passed.

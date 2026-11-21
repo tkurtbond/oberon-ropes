@@ -818,9 +818,12 @@ BEGIN
   RETURN CompareFolded(a, b, FALSE)
 END Compare;
 
+(* Whether a and b hold the same characters.  Ropes of different
+   lengths are unequal at once, without walking (and allocating walk
+   stacks for) either. *)
 PROCEDURE Equal*(a, b: Rope): BOOLEAN;
 BEGIN
-  RETURN Compare(a, b) = 0
+  RETURN (Length(a) = Length(b)) & (Compare(a, b) = 0)
 END Equal;
 
 (* Compare, ignoring the case of ASCII letters (each character passed

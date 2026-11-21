@@ -1146,13 +1146,13 @@ BEGIN
 END CheckTranslate;
 
 PROCEDURE CheckCompareStringAndNoCase;
-  VAR text: ARRAY 64 OF CHAR; prefix: ARRAY 64 OF CHAR; r, a, b: Ropes.Rope; i, j, n: LONGINT; ok, okNoCase: BOOLEAN;
+  VAR text: ARRAY 64 OF CHAR; prefix: ARRAY 64 OF CHAR; r, a, b: Ropes.Rope; i, j, n: LONGINT; ok, okNoCase, okEqual: BOOLEAN;
 BEGIN
   text := "The Quick BROWN fox Jumps over THE lazy dog";
   n := 0;
   WHILE text[n] # 0X DO INC(n) END;
   r := Chunked(text, n, 17);
-  ok := TRUE; okNoCase := TRUE;
+  ok := TRUE; okNoCase := TRUE; okEqual := TRUE;
   FOR i := 0 TO n DO
     FOR j := 0 TO i - 1 DO prefix[j] := text[j] END;
     prefix[i] := 0X;
@@ -1164,11 +1164,15 @@ BEGIN
       okNoCase := okNoCase
         & (Ropes.CompareNoCase(a, b) = Ropes.Compare(Ropes.LowercaseAscii(a), b))
         & (Ropes.CompareNoCase(b, a) = Ropes.Compare(b, Ropes.LowercaseAscii(a)))
-        & (Ropes.EqualNoCase(a, b) = (i = j))
+        & (Ropes.EqualNoCase(a, b) = (i = j));
+      okEqual := okEqual & (Ropes.Equal(a, Chunked(text, j, 23)) = (i = j))
+        & (Ropes.Equal(Chunked(text, j, 23), a) = (i = j))
+        & (Ropes.Equal(a, b) = (i = 0) & (j = 0))
     END
   END;
   Check(ok, "CompareString: every prefix, both ways, agrees with Compare");
   Check(okNoCase, "CompareNoCase, EqualNoCase: every pair of prefixes agrees with Compare on LowercaseAscii");
+  Check(okEqual, "Equal: every pair of prefixes, differently chunked or lowered, is equal only to itself");
   Check(Ropes.EqualString(r, text) & ~Ropes.EqualString(r, "The") & Ropes.EqualString(NIL, ""), "EqualString");
   Check(~Ropes.Equal(r, Ropes.LowercaseAscii(r)) & Ropes.EqualNoCase(r, Ropes.UppercaseAscii(r)), "EqualNoCase: across case")
 END CheckCompareStringAndNoCase;
